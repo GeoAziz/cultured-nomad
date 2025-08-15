@@ -9,9 +9,11 @@ import Starfield from '@/components/landing/starfield';
 
 export default function AdminSplashPage() {
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    setIsMounted(true);
     const timer = setTimeout(() => {
       setLoading(false);
     }, 2000); // Simulate a loading process
@@ -20,13 +22,22 @@ export default function AdminSplashPage() {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && isMounted) {
       const redirectTimer = setTimeout(() => {
         router.push('/admin/login');
       }, 1000);
       return () => clearTimeout(redirectTimer);
     }
-  }, [loading, router]);
+  }, [loading, router, isMounted]);
+
+  if (!isMounted) {
+     return (
+        <div className="relative flex flex-col items-center justify-center h-screen w-full overflow-hidden bg-black text-slate-100">
+             <Starfield />
+             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+     )
+  }
 
   return (
     <div className="relative flex flex-col items-center justify-center h-screen w-full overflow-hidden bg-black text-slate-100">
