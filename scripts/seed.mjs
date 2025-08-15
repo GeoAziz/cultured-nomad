@@ -1,199 +1,148 @@
-// @ts-check
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { faker } from '@faker-js/faker';
-import 'dotenv/config';
 
-// --- CONFIGURATION ---
-const USER_COUNT = 15;
-const STORIES_PER_USER = 2;
-const EVENT_COUNT = 5;
-const DEFAULT_PASSWORD = 'password123';
-// --- END CONFIGURATION ---
+import {faker} from '@faker-js/faker';
+import admin from 'firebase-admin';
+import {config} from 'dotenv';
 
-console.log('--- 🚀 Starting Zizo System Seed Script ---');
+// Load environment variables from .env file
+config();
 
 // Initialize Firebase Admin SDK
-// This requires you to have a service account key file and the path set in your .env
-// GOOGLE_APPLICATION_CREDENTIALS=path/to/your/serviceAccountKey.json
+// Make sure you have the serviceAccountKey.json in your project root
+// and GOOGLE_APPLICATION_CREDENTIALS is set in your .env file.
 try {
-  initializeApp({
-    credential: cert(process.env.GOOGLE_APPLICATION_CREDENTIALS),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  admin.initializeApp({
+    credential: admin.credential.applicationDefault(),
   });
-  console.log('✅ Firebase Admin SDK initialized successfully.');
 } catch (error) {
-  console.error(
-    '❌ Firebase Admin SDK initialization failed. Make sure you have a serviceAccountKey.json and have set the GOOGLE_APPLICATION_CREDENTIALS environment variable in a .env file.'
-  );
-  console.error(error);
+  console.error('----------------------------------------------------------------');
+  console.error('🔥 Firebase Admin SDK initialization failed.');
+  console.error('🔥 Please ensure your GOOGLE_APPLICATION_CREDENTIALS environment variable is set correctly.');
+  console.error('🔥 You should have a .env file with: GOOGLE_APPLICATION_CREDENTIALS=serviceAccountKey.json');
+  console.error('----------------------------------------------------------------');
   process.exit(1);
 }
 
-const auth = getAuth();
-const db = getFirestore();
 
-/**
- * Creates a batch of users in Firebase Authentication.
- * @param {number} count The number of users to create.
- * @returns {Promise<Array<{uid: string, email: string, password: string}>>}
- */
-async function createAuthUsers(count) {
-  console.log(`\n--- 🧍 Creating ${count} users in Firebase Auth... ---`);
-  const userPromises = [];
-  const userCredentials = [];
+const auth = admin.auth();
+const db = admin.firestore();
 
-  for (let i = 0; i < count; i++) {
-    const email = faker.internet.email();
-    const password = DEFAULT_PASSWORD;
-    const name = faker.person.fullName();
-    
-    const userPromise = auth.createUser({
-      email,
-      password,
-      displayName: name,
-      emailVerified: true,
-      disabled: false,
-    }).then(userRecord => {
-        console.log(`   -> Auth user created: ${email}`);
-        userCredentials.push({ uid: userRecord.uid, email, password, name });
-    }).catch(error => {
-        console.error(`   -> Error creating auth user ${email}:`, error.message);
-    });
-    userPromises.push(userPromise);
-  }
+// --- CONFIGURATION ---
+const USER_COUNT = 10; // Total number of users to create
+const ADMIN_COUNT = 2; // Number of users to be admins
+const MENTOR_COUNT = 3; // Number of users to be mentors
+const PASSWORD = 'password123'; // Default password for all test users
 
-  await Promise.all(userPromises);
-  console.log(`✅ Auth user creation complete. Total created: ${userCredentials.length}`);
-  return userCredentials;
-}
+const industries = ['Tech', 'Fintech', 'Creative', 'Healthcare', 'AI/ML', 'Fashion', 'Web3', 'Gaming'];
+const interests = ['AI', 'Blockchain', 'UX/UI Design', 'VR/AR', 'Quantum Computing', 'Sustainability', 'Art', 'Music'];
+const storyMoods = ['Wins', 'Fails', 'Lessons', 'Real Talk'];
 
-/**
- * Creates user profile documents in Firestore.
- * @param {Array<{uid: string, email: string, name: string}>} users
- */
-async function createFirestoreUsers(users) {
-    console.log(`\n--- 📝 Creating ${users.length} user profiles in Firestore... ---`);
-    const batch = db.batch();
+const createUsers = async () => {
+  console.log(`🌱 Starting to seed database with ${USER_COUNT} users...`);
+  const userPromises = Array(USER_COUNT).fill(null).map(async (_, index) => {
+    const fullName = faker.person.fullName();
+    const email = faker.internet.email({firstName: fullName.split(' ')[0], lastName: fullName.split(' ')[1]});
 
-    const roles = ['Mentor', 'Techie', 'Seeker'];
-    const industries = ['Tech', 'Fintech', 'Creative', 'Healthcare', 'AI/ML', 'Fashion'];
+    try {
+      // 1. Create user in Firebase Auth
+      const userRecord = await auth.createUser({
+        email,
+        password: PASSWORD,
+        displayName: fullName,
+        emailVerified: true,
+      });
 
-    users.forEach(user => {
-        const userRef = db.collection('users').doc(user.uid);
-        const role = faker.helpers.arrayElement(roles);
-        
-        batch.set(userRef, {
-            uid: user.uid,
-            name: user.name,
-            email: user.email,
-            avatar: faker.image.avatar(),
-            banner: 'https://placehold.co/1200x400.png',
-            dataAiHintBanner: 'abstract purple',
-            role: role,
-            industry: faker.helpers.arrayElement(industries),
-            bio: faker.lorem.paragraph(),
-            isMentor: role === 'Mentor',
-            joinedAt: new Date(),
-        });
-    });
+      // 2. Determine user role
+      let role = 'member';
+      let isMentor = false;
+      if (index < ADMIN_COUNT) {
+        role = 'admin';
+        // Set custom claim for admin role
+        await auth.setCustomUserClaims(userRecord.uid, { role: 'admin' });
+      } else if (index < ADMIN_COUNT + MENTOR_COUNT) {
+        role = 'mentor';
+        isMentor = true;
+      }
 
-    await batch.commit();
-    console.log('✅ Firestore user profiles created successfully.');
-}
+      // 3. Create user document in Firestore
+      await db.collection('users').doc(userRecord.uid).set({
+        uid: userRecord.uid,
+        name: fullName,
+        email,
+        avatar: `https://i.pravatar.cc/150?u=${userRecord.uid}`,
+        role,
+        bio: faker.lorem.paragraph(),
+        industry: faker.helpers.arrayElement(industries),
+        interests: faker.helpers.arrayElements(interests, {min: 2, max: 4}),
+        joinedAt: admin.firestore.Timestamp.fromDate(faker.date.past()),
+        isMentor,
+        banner: `https://placehold.co/1200x400.png`,
+        dataAiHint: 'woman portrait',
+        dataAiHintBanner: 'abstract purple',
+      });
+      
+      console.log(`✅ Created ${role}: ${email} (Password: ${PASSWORD}) (UID: ${userRecord.uid})`);
+      return userRecord;
+    } catch (error) {
+      console.error(`❌ Failed to create user ${email}:`, error.message);
+      return null;
+    }
+  });
 
-/**
- * Creates stories for users.
- * @param {Array<{uid: string, name: string, avatar: string}>} users
- */
-async function createStories(users) {
-    console.log(`\n--- 📖 Creating stories for users... ---`);
-    const batch = db.batch();
-    const moods = ['Wins', 'Fails', 'Lessons', 'Real Talk'];
+  return (await Promise.all(userPromises)).filter(Boolean);
+};
 
-    users.forEach(user => {
-        for(let i=0; i<STORIES_PER_USER; i++) {
-            const storyRef = db.collection('stories').doc();
-            batch.set(storyRef, {
-                userId: user.uid,
-                author: user.name,
-                avatar: `https://i.pravatar.cc/150?u=${user.email}`,
-                title: faker.lorem.sentence(),
-                excerpt: faker.lorem.sentences(2),
-                content: faker.lorem.paragraphs(3),
-                mood: faker.helpers.arrayElement(moods),
-                likes: faker.number.int({ min: 0, max: 150 }),
-                commentCount: faker.number.int({ min: 0, max: 20 }),
-                createdAt: faker.date.recent({ days: 30 }),
-            });
-        }
-    });
-
-    await batch.commit();
-    console.log('✅ Stories created successfully.');
-}
-
-/**
- * Creates events.
- * @param {Array<{uid: string, name: string}>} users
- */
-async function createEvents(users) {
-     console.log(`\n--- 🗓️ Creating ${EVENT_COUNT} events... ---`);
-     const batch = db.batch();
-     const eventTypes = ['Workshop', 'Mixer', 'Fireside Chat', 'Demo Day'];
-     const eventImages = [
-         { url: 'https://placehold.co/600x400.png', hint: 'people networking' },
-         { url: 'https://placehold.co/600x400.png', hint: 'woman coding' },
-         { url: 'https://placehold.co/600x400.png', hint: 'conference stage' },
-         { url: 'https://placehold.co/600x400.png', hint: 'virtual reality' },
-     ]
-
-     for (let i = 0; i < EVENT_COUNT; i++) {
-        const eventRef = db.collection('events').doc();
-        const randomHost = faker.helpers.arrayElement(users);
-        const randomImage = faker.helpers.arrayElement(eventImages);
-
-        batch.set(eventRef, {
+const createEvents = async () => {
+    console.log('🌱 Seeding events...');
+    const eventPromises = Array(5).fill(null).map(async () => {
+        const event = {
             title: faker.company.catchPhrase(),
-            date: faker.date.future({ years: 0.5 }),
-            type: faker.helpers.arrayElement(eventTypes),
-            host: randomHost.name,
-            hostId: randomHost.uid,
-            image: randomImage.url,
-            dataAiHint: randomImage.hint,
-        });
-     }
-     await batch.commit();
-     console.log('✅ Events created successfully.');
+            date: admin.firestore.Timestamp.fromDate(faker.date.future()),
+            type: faker.helpers.arrayElement(['Workshop', 'Mixer', 'Fireside Chat', 'Panel']),
+            host: faker.person.fullName(),
+            image: `https://placehold.co/600x400.png`,
+            dataAiHint: faker.helpers.arrayElement(['business meeting', 'conference', 'presentation', 'workshop', 'networking event']),
+        };
+        await db.collection('events').add(event);
+    });
+    await Promise.all(eventPromises);
+    console.log('✅ Events seeded.');
+}
+
+const createStories = async (users) => {
+    if (users.length === 0) return;
+    console.log('🌱 Seeding stories...');
+    const storyPromises = Array(15).fill(null).map(async () => {
+        const user = faker.helpers.arrayElement(users);
+        const story = {
+            title: faker.lorem.sentence(5),
+            excerpt: faker.lorem.paragraph(2),
+            content: faker.lorem.paragraphs(5),
+            mood: faker.helpers.arrayElement(storyMoods),
+            author: user.displayName,
+            avatar: `https://i.pravatar.cc/150?u=${user.uid}`,
+            userId: user.uid,
+            createdAt: admin.firestore.Timestamp.fromDate(faker.date.recent()),
+            likes: faker.number.int({ min: 0, max: 150 }),
+            commentCount: faker.number.int({ min: 0, max: 45 }),
+            dataAiHint: 'woman portrait',
+        };
+        await db.collection('stories').add(story);
+    });
+    await Promise.all(storyPromises);
+    console.log('✅ Stories seeded.');
 }
 
 
-/**
- * Main seeding function.
- */
-async function main() {
-  const users = await createAuthUsers(USER_COUNT);
-
-  if(users.length > 0) {
-    await createFirestoreUsers(users);
-    await createStories(users);
-    await createEvents(users);
-
-    console.log('\n\n--- ✅ SEEDING COMPLETE ---');
-    console.log('Below are the credentials for the newly created users.');
-    console.log('You can now use these to log in and test the application.');
-    console.table(users.map(u => ({ email: u.email, password: u.password, uid: u.uid })));
-    console.log('---------------------------\n');
-  } else {
-    console.log('\n--- ⚠️ No users were created. Halting script. ---');
-  }
-
+const seedDatabase = async () => {
+  console.log('--- Starting Database Seed ---');
+  const users = await createUsers();
+  await createEvents();
+  await createStories(users);
+  console.log('--- Database Seed Finished ---');
   process.exit(0);
-}
+};
 
-main().catch(error => {
-  console.error('❌ An unexpected error occurred during the seeding process:');
+seedDatabase().catch((error) => {
   console.error(error);
   process.exit(1);
 });
