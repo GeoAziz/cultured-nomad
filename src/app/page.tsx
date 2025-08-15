@@ -81,7 +81,7 @@ export default function WelcomePage() {
             </Button>
           </Link>
         </motion.div>
-      </main>
+      </motion.main>
 
       <motion.div
         className="absolute bottom-8 z-10"
