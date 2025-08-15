@@ -42,7 +42,7 @@ export default function WelcomePage() {
           }}
           className="mb-8"
         >
-          <Logo className="h-20 md:h-24 w-auto" />
+          <Logo className="h-16 md:h-24 w-auto" />
         </motion.div>
 
         <motion.div
@@ -54,7 +54,7 @@ export default function WelcomePage() {
               transition: { duration: 0.8, ease: 'easeOut' },
             },
           }}
-          className="font-headline text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tighter"
+          className="font-headline text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter"
         >
           <Typewriter text="A Sisterhood of Ambitious Women. Join. Grow. Glow." />
         </motion.div>
