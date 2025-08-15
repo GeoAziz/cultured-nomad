@@ -1,10 +1,11 @@
+
 "use client";
 
 import AdminSidebar from '@/components/admin/admin-sidebar';
 import AdminHeader from '@/components/admin/admin-header';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Starfield from '@/components/landing/starfield';
 import { Loader2 } from 'lucide-react';
 
@@ -15,20 +16,26 @@ export default function AdminLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+  const [pathname, setPathname] = useState('');
 
   useEffect(() => {
-    if (!loading && !user) {
+    setIsMounted(true);
+    setPathname(window.location.pathname);
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !user && isMounted && pathname !== '/admin/login' && pathname !== '/admin') {
       router.push('/admin/login');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, isMounted, pathname]);
 
-  // Special case for login page to avoid layout shift
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  // Special case for login/splash pages to avoid layout shift
   if (pathname === '/admin/login' || pathname === '/admin') {
     return <>{children}</>;
   }
   
-  if (loading || !user) {
+  if (loading || !user || !isMounted) {
      return (
       <div className="flex items-center justify-center h-screen bg-black">
         <Starfield />
