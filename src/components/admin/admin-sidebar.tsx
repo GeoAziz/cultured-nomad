@@ -42,7 +42,7 @@ export default function AdminSidebar() {
               href={item.href}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                pathname.startsWith(item.href)
+                pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href))
                   ? 'bg-primary/20 text-primary text-glow'
                   : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
               )}
