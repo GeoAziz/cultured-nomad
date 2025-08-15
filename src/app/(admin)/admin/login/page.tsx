@@ -4,13 +4,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Mail, KeyRound, Loader2 } from 'lucide-react';
+import { Mail, KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import Starfield from '@/components/landing/starfield';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import AuthInput from '@/components/auth/auth-input';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -27,9 +27,14 @@ export default function AdminLoginPage() {
     setError(null);
     try {
       await login(email, password, {
-        onSuccess: () => {
+        onSuccess: (role) => {
           toast({ title: 'Authorization successful.' });
-          router.push('/admin/dashboard');
+          if (role === 'admin') {
+            router.push('/admin/dashboard');
+          } else {
+            // This case should ideally not be hit due to login logic, but as a fallback:
+            router.push('/dashboard');
+          }
         },
         onError: (err) => {
           setError(err);
@@ -46,49 +51,50 @@ export default function AdminLoginPage() {
     <div className="relative flex items-center justify-center h-screen w-full overflow-hidden bg-black">
       <Starfield />
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
+        initial={{ opacity: 0, y: -20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.8, type: "spring" }}
         className="z-10 w-full max-w-md p-8 space-y-8 admin-glass-card"
       >
         <div className="text-center">
+            <div className="inline-block bg-red-500/20 text-red-300 rounded-full p-2 mb-4 border border-red-500/50">
+                <ShieldAlert className="h-8 w-8 text-glow" />
+            </div>
           <h1 className="font-headline text-4xl font-bold text-glow">Admin Authentication</h1>
-          <p className="text-slate-400 mt-2">Secure access required.</p>
+          <p className="text-slate-400 mt-2">Secure terminal access required.</p>
         </div>
 
         {error && (
-            <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <motion.div initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}}>
+                <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4"/>
+                    <AlertTitle>Access Denied</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            </motion.div>
         )}
 
         <form className="space-y-6" onSubmit={handleLogin}>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-            <Input
-              id="email"
-              type="email"
-              placeholder="operator@zizo.net"
-              className="pl-10 bg-slate-900/50 border-slate-700 focus:ring-primary"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          <div className="relative">
-             <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              className="pl-10 bg-slate-900/50 border-slate-700 focus:ring-primary"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
+          <AuthInput
+            id="email"
+            type="email"
+            placeholder="operator@culturednomads.io"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            icon={Mail}
+            disabled={loading}
+            required
+          />
+           <AuthInput
+            id="password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            icon={KeyRound}
+            disabled={loading}
+            required
+          />
           <Button type="submit" className="w-full glow-button text-lg py-6" disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : 'Authorize'}
           </Button>
