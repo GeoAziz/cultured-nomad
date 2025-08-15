@@ -1,106 +1,199 @@
-import admin from 'firebase-admin';
-import {faker} from '@faker-js/faker';
+// @ts-check
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { faker } from '@faker-js/faker';
+import 'dotenv/config';
 
-// IMPORTANT: Path to your service account key file
-import serviceAccount from '../serviceAccountKey.json' with {type: 'json'};
+// --- CONFIGURATION ---
+const USER_COUNT = 15;
+const STORIES_PER_USER = 2;
+const EVENT_COUNT = 5;
+const DEFAULT_PASSWORD = 'password123';
+// --- END CONFIGURATION ---
+
+console.log('--- 🚀 Starting Zizo System Seed Script ---');
 
 // Initialize Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: `https://cultered-nomads.firebaseio.com`,
-});
+// This requires you to have a service account key file and the path set in your .env
+// GOOGLE_APPLICATION_CREDENTIALS=path/to/your/serviceAccountKey.json
+try {
+  initializeApp({
+    credential: cert(process.env.GOOGLE_APPLICATION_CREDENTIALS),
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
+  console.log('✅ Firebase Admin SDK initialized successfully.');
+} catch (error) {
+  console.error(
+    '❌ Firebase Admin SDK initialization failed. Make sure you have a serviceAccountKey.json and have set the GOOGLE_APPLICATION_CREDENTIALS environment variable in a .env file.'
+  );
+  console.error(error);
+  process.exit(1);
+}
 
-const db = admin.firestore();
+const auth = getAuth();
+const db = getFirestore();
 
-const seedUsers = async (count = 10) => {
-    const usersCollection = db.collection('users');
-    console.log('Seeding users...');
-    for (let i = 0; i < count; i++) {
-        const name = faker.person.fullName();
-        const isMentor = faker.datatype.boolean(0.3); // 30% chance of being a mentor
-        await usersCollection.doc(faker.string.uuid()).set({
-            name: name,
-            email: faker.internet.email({firstName: name.split(' ')[0]}),
+/**
+ * Creates a batch of users in Firebase Authentication.
+ * @param {number} count The number of users to create.
+ * @returns {Promise<Array<{uid: string, email: string, password: string}>>}
+ */
+async function createAuthUsers(count) {
+  console.log(`\n--- 🧍 Creating ${count} users in Firebase Auth... ---`);
+  const userPromises = [];
+  const userCredentials = [];
+
+  for (let i = 0; i < count; i++) {
+    const email = faker.internet.email();
+    const password = DEFAULT_PASSWORD;
+    const name = faker.person.fullName();
+    
+    const userPromise = auth.createUser({
+      email,
+      password,
+      displayName: name,
+      emailVerified: true,
+      disabled: false,
+    }).then(userRecord => {
+        console.log(`   -> Auth user created: ${email}`);
+        userCredentials.push({ uid: userRecord.uid, email, password, name });
+    }).catch(error => {
+        console.error(`   -> Error creating auth user ${email}:`, error.message);
+    });
+    userPromises.push(userPromise);
+  }
+
+  await Promise.all(userPromises);
+  console.log(`✅ Auth user creation complete. Total created: ${userCredentials.length}`);
+  return userCredentials;
+}
+
+/**
+ * Creates user profile documents in Firestore.
+ * @param {Array<{uid: string, email: string, name: string}>} users
+ */
+async function createFirestoreUsers(users) {
+    console.log(`\n--- 📝 Creating ${users.length} user profiles in Firestore... ---`);
+    const batch = db.batch();
+
+    const roles = ['Mentor', 'Techie', 'Seeker'];
+    const industries = ['Tech', 'Fintech', 'Creative', 'Healthcare', 'AI/ML', 'Fashion'];
+
+    users.forEach(user => {
+        const userRef = db.collection('users').doc(user.uid);
+        const role = faker.helpers.arrayElement(roles);
+        
+        batch.set(userRef, {
+            uid: user.uid,
+            name: user.name,
+            email: user.email,
             avatar: faker.image.avatar(),
-            role: isMentor ? 'Mentor' : faker.helpers.arrayElement(['Techie', 'Seeker']),
-            bio: faker.person.bio(),
-            industry: faker.helpers.arrayElement(['Tech', 'Fintech', 'Creative', 'Healthcare', 'AI/ML', 'Fashion']),
-            interests: faker.helpers.arrayElements(['AI', 'Web3', 'Design', 'Growth', 'Leadership'], {min: 1, max: 3}),
-            joinedAt: admin.firestore.Timestamp.fromDate(faker.date.past()),
-            isMentor: isMentor
+            banner: 'https://placehold.co/1200x400.png',
+            dataAiHintBanner: 'abstract purple',
+            role: role,
+            industry: faker.helpers.arrayElement(industries),
+            bio: faker.lorem.paragraph(),
+            isMentor: role === 'Mentor',
+            joinedAt: new Date(),
         });
-    }
-    console.log(`${count} users seeded.`);
-};
+    });
 
-const seedEvents = async (count = 5) => {
-    const eventsCollection = db.collection('events');
-    const users = await db.collection('users').where('isMentor', '==', true).get();
-    const mentors = users.docs.map(doc => ({id: doc.id, ...doc.data()}));
+    await batch.commit();
+    console.log('✅ Firestore user profiles created successfully.');
+}
 
-    if (mentors.length === 0) {
-        console.log('Cannot seed events, no mentors found. Seed users first.');
-        return;
-    }
+/**
+ * Creates stories for users.
+ * @param {Array<{uid: string, name: string, avatar: string}>} users
+ */
+async function createStories(users) {
+    console.log(`\n--- 📖 Creating stories for users... ---`);
+    const batch = db.batch();
+    const moods = ['Wins', 'Fails', 'Lessons', 'Real Talk'];
 
-    console.log('Seeding events...');
-    for (let i = 0; i < count; i++) {
-        const host = faker.helpers.arrayElement(mentors);
-        await eventsCollection.add({
-            title: faker.lorem.words(3),
-            date: admin.firestore.Timestamp.fromDate(faker.date.future()),
-            type: faker.helpers.arrayElement(['Virtual Workshop', 'AMA Session', 'In-Person Meetup']),
-            host: host.name,
-            hostId: host.id,
-            image: faker.image.urlLoremFlickr({ category: 'business' }),
-            dataAiHint: 'abstract technology',
+    users.forEach(user => {
+        for(let i=0; i<STORIES_PER_USER; i++) {
+            const storyRef = db.collection('stories').doc();
+            batch.set(storyRef, {
+                userId: user.uid,
+                author: user.name,
+                avatar: `https://i.pravatar.cc/150?u=${user.email}`,
+                title: faker.lorem.sentence(),
+                excerpt: faker.lorem.sentences(2),
+                content: faker.lorem.paragraphs(3),
+                mood: faker.helpers.arrayElement(moods),
+                likes: faker.number.int({ min: 0, max: 150 }),
+                commentCount: faker.number.int({ min: 0, max: 20 }),
+                createdAt: faker.date.recent({ days: 30 }),
+            });
+        }
+    });
+
+    await batch.commit();
+    console.log('✅ Stories created successfully.');
+}
+
+/**
+ * Creates events.
+ * @param {Array<{uid: string, name: string}>} users
+ */
+async function createEvents(users) {
+     console.log(`\n--- 🗓️ Creating ${EVENT_COUNT} events... ---`);
+     const batch = db.batch();
+     const eventTypes = ['Workshop', 'Mixer', 'Fireside Chat', 'Demo Day'];
+     const eventImages = [
+         { url: 'https://placehold.co/600x400.png', hint: 'people networking' },
+         { url: 'https://placehold.co/600x400.png', hint: 'woman coding' },
+         { url: 'https://placehold.co/600x400.png', hint: 'conference stage' },
+         { url: 'https://placehold.co/600x400.png', hint: 'virtual reality' },
+     ]
+
+     for (let i = 0; i < EVENT_COUNT; i++) {
+        const eventRef = db.collection('events').doc();
+        const randomHost = faker.helpers.arrayElement(users);
+        const randomImage = faker.helpers.arrayElement(eventImages);
+
+        batch.set(eventRef, {
+            title: faker.company.catchPhrase(),
+            date: faker.date.future({ years: 0.5 }),
+            type: faker.helpers.arrayElement(eventTypes),
+            host: randomHost.name,
+            hostId: randomHost.uid,
+            image: randomImage.url,
+            dataAiHint: randomImage.hint,
         });
-    }
-    console.log(`${count} events seeded.`);
-};
-
-const seedStories = async (count = 8) => {
-    const storiesCollection = db.collection('stories');
-    const users = await db.collection('users').get();
-    const allUsers = users.docs.map(doc => ({id: doc.id, ...doc.data()}));
-
-    if (allUsers.length === 0) {
-        console.log('Cannot seed stories, no users found. Seed users first.');
-        return;
-    }
-
-    console.log('Seeding stories...');
-    for (let i = 0; i < count; i++) {
-        const author = faker.helpers.arrayElement(allUsers);
-        const isAnonymous = faker.datatype.boolean(0.2);
-
-        await storiesCollection.add({
-            title: faker.lorem.sentence(),
-            excerpt: faker.lorem.paragraph(),
-            content: faker.lorem.paragraphs(5),
-            mood: faker.helpers.arrayElement(['Wins', 'Fails', 'Lessons', 'Real Talk']),
-            author: isAnonymous ? 'Anonymous' : author.name,
-            avatar: isAnonymous ? 'https://placehold.co/50x50.png' : author.avatar,
-            userId: isAnonymous ? null : author.id,
-            createdAt: admin.firestore.Timestamp.fromDate(faker.date.recent()),
-            likes: faker.number.int({min: 0, max: 150}),
-            commentCount: faker.number.int({min: 0, max: 20})
-        });
-    }
-    console.log(`${count} stories seeded.`);
-};
+     }
+     await batch.commit();
+     console.log('✅ Events created successfully.');
+}
 
 
-const seedDatabase = async () => {
-    console.log('Starting database seed...');
-    await seedUsers();
-    await seedEvents();
-    await seedStories();
-    console.log('Database seeding complete!');
-    process.exit(0);
-};
+/**
+ * Main seeding function.
+ */
+async function main() {
+  const users = await createAuthUsers(USER_COUNT);
 
-seedDatabase().catch(error => {
-    console.error('Error seeding database:', error);
-    process.exit(1);
+  if(users.length > 0) {
+    await createFirestoreUsers(users);
+    await createStories(users);
+    await createEvents(users);
+
+    console.log('\n\n--- ✅ SEEDING COMPLETE ---');
+    console.log('Below are the credentials for the newly created users.');
+    console.log('You can now use these to log in and test the application.');
+    console.table(users.map(u => ({ email: u.email, password: u.password, uid: u.uid })));
+    console.log('---------------------------\n');
+  } else {
+    console.log('\n--- ⚠️ No users were created. Halting script. ---');
+  }
+
+  process.exit(0);
+}
+
+main().catch(error => {
+  console.error('❌ An unexpected error occurred during the seeding process:');
+  console.error(error);
+  process.exit(1);
 });
