@@ -70,18 +70,18 @@ export default function WelcomePage() {
           }}
           className="mt-12 flex flex-col sm:flex-row items-center gap-4"
         >
-          <Link href="/dashboard" passHref>
+          <Link href="/login" passHref>
             <Button className="glow-button px-8 py-6 text-lg w-48" size="lg">
-              Enter Hub
+              Login
             </Button>
           </Link>
-          <Link href="/dashboard" passHref>
+          <Link href="/signup" passHref>
             <Button className="outline-glass-button px-8 py-6 text-lg w-48" size="lg">
-              Join Now
+              Sign Up
             </Button>
           </Link>
         </motion.div>
-      </motion.main>
+      </main>
 
       <motion.div
         className="absolute bottom-8 z-10"
