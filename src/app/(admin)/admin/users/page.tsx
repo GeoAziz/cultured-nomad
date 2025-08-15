@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, UserPlus, ShieldOff, MoreVertical } from 'lucide-react';
 import PageHeader from '@/components/shared/page-header';
@@ -25,15 +25,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { collection, getDocs, getFirestore } from 'firebase/firestore';
+import { app } from '@/lib/firebase/firebase_config';
+import { Skeleton } from '@/components/ui/skeleton';
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  avatar: string;
+  dataAiHint?: string;
+}
 
-const usersData = [
-  { id: 'u001', name: 'Aisha Khan', email: 'aisha@nexusai.com', role: 'Mentor', status: 'Active', avatar: 'https://placehold.co/100x100.png', dataAiHint: 'woman portrait' },
-  { id: 'u002', name: 'Zoe Hart', email: 'zoe.hart@web3.dev', role: 'Techie', status: 'Active', avatar: 'https://placehold.co/100x100.png', dataAiHint: 'woman professional' },
-  { id: 'u003', name: 'Priya Sharma', email: 'priya.s@fintech.co', role: 'Seeker', status: 'Active', avatar: 'https://placehold.co/100x100.png', dataAiHint: 'indian woman' },
-  { id: 'u004', name: 'Mei Lin', email: 'mei.lin@creative.io', role: 'Techie', status: 'Banned', avatar: 'https://placehold.co/100x100.png', dataAiHint: 'asian woman' },
-  { id: 'u005', name: 'Fatima Al-Jamil', email: 'fatima.j@corp.net', role: 'Mentor', status: 'Active', avatar: 'https://placehold.co/100x100.png', dataAiHint: 'woman smile' },
-];
 
 const getRoleClass = (role: string) => {
     switch(role?.toLowerCase()) {
@@ -49,8 +54,24 @@ const getStatusClass = (status: string) => {
 
 
 export default function UserManagementPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const filteredUsers = usersData.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  
+  // Replace with actual data fetching
+  useEffect(() => {
+    const fetchUsers = async () => {
+        setLoading(true);
+        const db = getFirestore(app);
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const usersList = usersSnapshot.docs.map(doc => ({id: doc.id, ...doc.data(), status: 'Active'} as User)); // Status is mock
+        setUsers(usersList);
+        setLoading(false);
+    }
+    fetchUsers();
+  }, [])
+  
+  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <motion.div
@@ -104,49 +125,68 @@ export default function UserManagementPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="border-slate-800 hover:bg-slate-900/50">
-                    <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                            <Avatar className="w-10 h-10 border-2 border-primary/50">
-                                <AvatarImage src={user.avatar} data-ai-hint={user.dataAiHint} />
-                                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                             <div>
-                                <p>{user.name}</p>
-                                <p className="text-xs text-slate-400">{user.email}</p>
+                {loading ? (
+                    Array.from({length: 5}).map((_, i) => (
+                         <TableRow key={i} className="border-slate-800">
+                            <TableCell>
+                                <div className="flex items-center gap-3">
+                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                    <div className="space-y-1">
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-3 w-32" />
+                                    </div>
+                                </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 rounded" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-16 rounded" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                         </TableRow>
+                    ))
+                ) : (
+                    filteredUsers.map((user) => (
+                    <TableRow key={user.id} className="border-slate-800 hover:bg-slate-900/50">
+                        <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="w-10 h-10 border-2 border-primary/50">
+                                    <AvatarImage src={user.avatar} data-ai-hint={user.dataAiHint} />
+                                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p>{user.name}</p>
+                                    <p className="text-xs text-slate-400">{user.email}</p>
+                                </div>
                             </div>
-                        </div>
-                    </TableCell>
-                    <TableCell>
-                         <Badge className={cn('font-semibold border-none', getRoleClass(user.role))}>
-                            {user.role}
-                        </Badge>
-                    </TableCell>
-                    <TableCell>
-                         <Badge className={cn('font-semibold border-none', getStatusClass(user.status))}>
-                            {user.status}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild>
-                           <Button variant="ghost" size="icon">
-                             <MoreVertical className="h-5 w-5" />
-                           </Button>
-                         </DropdownMenuTrigger>
-                         <DropdownMenuContent className="admin-glass-card border-slate-700">
-                           <DropdownMenuItem>View Profile</DropdownMenuItem>
-                           <DropdownMenuItem>Edit Role</DropdownMenuItem>
-                           <DropdownMenuItem className="text-red-400 focus:bg-red-500/20 focus:text-red-300">
-                             <ShieldOff className="mr-2 h-4 w-4" />
-                             {user.status === 'Active' ? 'Ban User' : 'Unban User'}
-                           </DropdownMenuItem>
-                         </DropdownMenuContent>
-                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </TableCell>
+                        <TableCell>
+                            <Badge className={cn('font-semibold border-none', getRoleClass(user.role))}>
+                                {user.role}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>
+                            <Badge className={cn('font-semibold border-none', getStatusClass(user.status))}>
+                                {user.status}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                                <MoreVertical className="h-5 w-5" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="admin-glass-card border-slate-700">
+                            <DropdownMenuItem>View Profile</DropdownMenuItem>
+                            <DropdownMenuItem>Edit Role</DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-400 focus:bg-red-500/20 focus:text-red-300">
+                                <ShieldOff className="mr-2 h-4 w-4" />
+                                {user.status === 'Active' ? 'Ban User' : 'Unban User'}
+                            </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        </TableCell>
+                    </TableRow>
+                    ))
+                )}
               </TableBody>
             </Table>
          </CardContent>
