@@ -23,7 +23,6 @@
     --border: 290 25% 90%;
     --input: 290 25% 90%;
     --ring: 289 83% 55%;
-    --radius: 0.5rem;
   }
 
   .dark {
@@ -81,5 +80,9 @@
 
   .text-glow-accent {
     text-shadow: 0 0 8px hsl(var(--accent)), 0 0 20px hsl(var(--accent));
+  }
+
+  .admin-glass-card {
+    @apply bg-black/40 backdrop-blur-md border border-slate-700 rounded-lg shadow-lg shadow-black/30;
   }
 }
