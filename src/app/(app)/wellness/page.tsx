@@ -1,0 +1,125 @@
+"use client";
+
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import PageHeader from '@/components/shared/page-header';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+
+const moods = [
+    { emoji: '🎉', label: 'Celebrating' },
+    { emoji: '🚀', label: 'Productive' },
+    { emoji: '😌', label: 'Relaxed' },
+    { emoji: '🤔', label: 'Reflective' },
+    { emoji: '😫', label: 'Overwhelmed' },
+];
+
+const journalPrompt = "What's one small step you took today that you're proud of, and why did it matter?";
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: { y: 0, opacity: 1 },
+};
+
+export default function WellnessPage() {
+    const [selectedMood, setSelectedMood] = useState<string | null>(null);
+
+    return (
+        <div className="space-y-8">
+            <PageHeader title="Wellness Corner" description="Nourish your mind. Celebrate your journey." />
+
+            <motion.div 
+                className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+            >
+                <motion.div className="space-y-8" variants={itemVariants}>
+                    <Card className="glass-card">
+                        <CardHeader>
+                            <CardTitle className="font-headline text-2xl">How are you feeling today?</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex justify-around">
+                                {moods.map(mood => (
+                                    <motion.button
+                                        key={mood.label}
+                                        onClick={() => setSelectedMood(mood.label)}
+                                        className="flex flex-col items-center gap-2 text-foreground/80 relative"
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                    >
+                                        <span className="text-4xl p-4 bg-card/50 rounded-full">{mood.emoji}</span>
+                                        <span className="text-sm">{mood.label}</span>
+                                        {selectedMood === mood.label && (
+                                            <motion.div
+                                                layoutId="mood-ring"
+                                                className="absolute inset-0 rounded-full border-2 border-primary"
+                                                initial={{ scale: 0 }}
+                                                animate={{ scale: 1.1 }}
+                                                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                                            />
+                                        )}
+                                    </motion.button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="glass-card">
+                        <CardHeader>
+                            <CardTitle className="font-headline text-2xl">Log your Win of the Day</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex gap-2">
+                            <Input placeholder="e.g., Nailed my presentation!" />
+                            <Button className="glow-button">Log Win</Button>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div className="space-y-8" variants={itemVariants}>
+                     <Card className="glass-card h-full flex flex-col">
+                        <CardHeader>
+                            <CardTitle className="font-headline text-2xl">Guided Reflection</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex-1 flex flex-col">
+                           <p className="italic text-foreground/80 mb-4">{journalPrompt}</p>
+                           <Textarea placeholder="Your thoughts..." className="flex-1 bg-card/50" />
+                           <Button className="glow-button-accent mt-4 self-end">Save Entry</Button>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div className="lg:col-span-2" variants={itemVariants}>
+                    <Card className="glass-card">
+                         <CardHeader>
+                            <CardTitle className="font-headline text-2xl">Mini Meditations</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col md:flex-row items-center gap-6">
+                            <div className="flex-1">
+                                <h3 className="font-semibold text-lg">5-Minute Focus Boost</h3>
+                                <p className="text-sm text-foreground/70">A quick reset for a busy mind.</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <Button size="icon" variant="ghost"><SkipBack/></Button>
+                                <Button size="icon" className="w-16 h-16 glow-button"><Play className="h-8 w-8"/></Button>
+                                <Button size="icon" variant="ghost"><SkipForward/></Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            </motion.div>
+        </div>
+    );
+}

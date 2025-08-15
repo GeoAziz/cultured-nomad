@@ -1,0 +1,225 @@
+import * as admin from "firebase-admin";
+import * as functions from "firebase-functions";
+
+admin.initializeApp();
+const db = admin.firestore();
+
+// --- AUTH FUNCTIONS ---
+
+/**
+ * Triggered on new user creation to set up their profile in Firestore.
+ */
+export const assignUserRole = functions.auth.user().onCreate(async (user) => {
+  const { uid, email, displayName, photoURL } = user;
+  const userRef = db.collection("users").doc(uid);
+
+  return userRef.set({
+    uid,
+    name: displayName || email,
+    email,
+    avatar: photoURL || `https://placehold.co/150x150.png`,
+    role: "member", // Default role
+    bio: "New member of the Cultured Nomads sisterhood!",
+    interests: [],
+    joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+    isMentor: false,
+  });
+});
+
+/**
+ * Triggered on user deletion to clean up their data.
+ */
+export const onUserDelete = functions.auth.user().onDelete(async (user) => {
+    const { uid } = user;
+    const userRef = db.collection("users").doc(uid);
+
+    // TODO: Add cleanup for other user-related data like stories, messages, etc.
+    // This can be complex, consider a batch job or more targeted deletions.
+
+    return userRef.delete();
+});
+
+
+// --- CALLABLE FUNCTIONS ---
+
+/**
+ * Allows a user to RSVP to an event.
+ */
+export const rsvpToEvent = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "You must be logged in to RSVP.");
+  }
+  const { eventId, rsvp } = data;
+  const userId = context.auth.uid;
+  const rsvpRef = db.collection("event_rsvps").doc(`${userId}_${eventId}`);
+
+  if (rsvp) {
+    await rsvpRef.set({
+      userId,
+      eventId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    // Optional: Notify event host
+    return { status: "success", message: "RSVP successful." };
+  } else {
+    await rsvpRef.delete();
+    return { status: "success", message: "RSVP removed." };
+  }
+});
+
+
+/**
+ * Sends a message from one user to another.
+ */
+export const sendMessage = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in to send messages.");
+    }
+
+    const { to, messageContent, attachmentUrl } = data;
+    const from = context.auth.uid;
+
+    if (!to || !messageContent) {
+        throw new functions.https.HttpsError("invalid-argument", "Message must have a recipient and content.");
+    }
+
+    const message = {
+        from,
+        to,
+        content: messageContent, // Basic sanitization should be handled on client/server
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+        attachmentUrl: attachmentUrl || null,
+    };
+
+    await db.collection("messages").add(message);
+
+    // Send a notification to the recipient
+    await sendNotification({
+        toUserId: to,
+        message: `You have a new message from a member.`,
+    });
+
+    return { status: "success" };
+});
+
+/**
+ * Allows a user to request mentorship from a mentor.
+ */
+export const requestMentorship = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const { mentorId, message } = data;
+    const userId = context.auth.uid;
+
+    const mentorRef = db.collection("users").doc(mentorId);
+    const mentorDoc = await mentorRef.get();
+
+    if (!mentorDoc.exists || !mentorDoc.data()?.isMentor) {
+         throw new functions.https.HttpsError("not-found", "Mentor not found or user is not a mentor.");
+    }
+
+    const mentorship = {
+        userId,
+        mentorId,
+        status: "pending", // pending, accepted, declined
+        message,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection("mentorships").add(mentorship);
+
+    await sendNotification({ toUserId: mentorId, message: `You have a new mentorship request from a member.` });
+
+    return { status: "pending" };
+});
+
+
+/**
+ * Logs a user's mood for the wellness tracker.
+ */
+export const logMood = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+
+    const { mood, notes } = data;
+    const userId = context.auth.uid;
+
+    if (!mood) {
+        throw new functions.https.HttpsError("invalid-argument", "Mood is a required field.");
+    }
+
+    await db.collection("mood_logs").doc(userId).collection("logs").add({
+        mood,
+        notes,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    
+    // Optional: Return a motivational quote
+    const quotes = ["You are a powerhouse of innovation.", "Your potential is limitless.", "Embrace your journey."];
+    const quote = quotes[Math.floor(Math.random()*quotes.length)];
+
+    return { status: "success", quote };
+});
+
+/**
+ * Publishes a new story or journal entry.
+ */
+export const publishStory = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in to publish.");
+    }
+
+    const { title, content, tags, isAnonymous } = data;
+    const userId = context.auth.uid;
+
+    const storyData = {
+        title,
+        content,
+        tags: tags || [],
+        isAnonymous: !!isAnonymous,
+        userId: userId,
+        author: isAnonymous ? "Anonymous Nomad" : context.auth.token.name || "A Nomad",
+        avatar: isAnonymous ? "https://placehold.co/50x50.png" : context.auth.token.picture || "https://placehold.co/50x50.png",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        likes: [],
+        commentCount: 0,
+    };
+
+    await db.collection("stories").add(storyData);
+
+    return { status: "published" };
+});
+
+/**
+ * Helper function to push a notification to a user's subcollection.
+ */
+const sendNotification = async ({ toUserId, message }: { toUserId: string; message: string; }) => {
+    if (!toUserId || !message) return;
+
+    const notification = {
+        message,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    return db.collection("notifications").doc(toUserId).collection("user_notifications").add(notification);
+};
+
+/**
+ * A placeholder callable function to get a daily prompt.
+ */
+export const getDailyPrompt = functions.https.onCall((data, context) => {
+    const prompts = [
+        "What's one small step you took today that you're proud of, and why did it matter?",
+        "Describe a challenge you faced recently and what you learned from it.",
+        "Who is a woman in your field that inspires you, and why?",
+        "What is one skill you want to develop this month?",
+    ];
+    
+    const prompt = prompts[Math.floor(Math.random()*prompts.length)];
+
+    return { prompt };
+});

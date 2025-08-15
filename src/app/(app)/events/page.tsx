@@ -1,0 +1,183 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import Image from 'next/image';
+import PageHeader from '@/components/shared/page-header';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CheckCircle, PlusCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { collection, getDocs, query, orderBy, getFirestore, Timestamp } from 'firebase/firestore';
+import { app } from '@/lib/firebase/firebase_config';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+    },
+  },
+};
+
+interface Event {
+    id: string;
+    title: string;
+    date: Date;
+    type: string;
+    host: string;
+    image: string;
+    dataAiHint: string;
+    rsvpd: boolean; // This would be determined by user's RSVPs in a real app
+}
+
+export default function EventsPage() {
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+        const db = getFirestore(app);
+        const eventsCollection = collection(db, 'events');
+        const q = query(eventsCollection, orderBy('date', 'desc'));
+        const eventSnapshot = await getDocs(q);
+        const eventList = eventSnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Convert Firestore Timestamp to JS Date
+            const eventDate = data.date instanceof Timestamp ? data.date.toDate() : new Date();
+            return { id: doc.id, ...data, date: eventDate, rsvpd: false } as Event;
+        });
+        setEvents(eventList);
+        setLoading(false);
+    };
+
+    fetchEvents();
+  }, []);
+
+  const handleRsvp = (title: string) => {
+    toast({
+      title: '🎉 RSVP Confirmed!',
+      description: `You're all set for "${title}".`,
+    });
+    // In a real app, this would call the `rsvpToEvent` Cloud Function
+  };
+
+  return (
+    <div className="space-y-8">
+      <PageHeader title="Events" description="Join workshops, mixers, and fireside chats." />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <motion.div
+          className="lg:col-span-1"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="glass-card p-0">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={setDate}
+              className="p-4"
+              modifiers={{
+                events: events.map(e => e.date)
+              }}
+              modifiersStyles={{
+                events: {
+                  color: 'hsl(var(--primary-foreground))',
+                  backgroundColor: 'hsl(var(--primary))',
+                  boxShadow: '0 0 8px hsl(var(--primary))',
+                },
+              }}
+            />
+          </Card>
+        </motion.div>
+
+        <motion.div
+          className="lg:col-span-2 space-y-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <h2 className="font-headline text-3xl">Upcoming Events</h2>
+          {loading ? (
+             Array.from({ length: 2 }).map((_, i) => (
+                <Card key={i} className="glass-card flex flex-col md:flex-row overflow-hidden">
+                     <Skeleton className="md:w-1/3 h-48 md:h-auto" />
+                     <div className="md:w-2/3 flex flex-col p-6">
+                        <Skeleton className="h-5 w-24 mb-2" />
+                        <Skeleton className="h-8 w-full mb-4" />
+                        <Skeleton className="h-5 w-3/4 mb-2" />
+                        <Skeleton className="h-5 w-1/2 mb-6" />
+                        <Skeleton className="h-10 w-32" />
+                     </div>
+                </Card>
+             ))
+          ) : (
+            events.map(event => (
+                <motion.div key={event.id} variants={itemVariants} whileHover={{ y: -5 }}>
+                <Card className="glass-card flex flex-col md:flex-row overflow-hidden">
+                    <div className="md:w-1/3 relative min-h-[200px]">
+                    <Image src={event.image} alt={event.title} layout="fill" className="object-cover" data-ai-hint={event.dataAiHint} />
+                    </div>
+                    <div className="md:w-2/3 flex flex-col">
+                    <CardHeader>
+                        <Badge variant="secondary" className="w-fit mb-2">{event.type}</Badge>
+                        <CardTitle className="font-headline text-2xl">{event.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-foreground/80">{event.date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="link" className="p-0 h-auto mt-2 text-primary">
+                                    Hosted by {event.host}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 glass-card">
+                                <div className="flex items-center gap-4">
+                                    <Avatar>
+                                        <AvatarImage src="https://placehold.co/100x100.png" />
+                                        <AvatarFallback>ZH</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-bold">{event.host}</p>
+                                        <p className="text-sm text-muted-foreground">Tech Mentor</p>
+                                    </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={() => handleRsvp(event.title)} disabled={event.rsvpd} className={event.rsvpd ? '' : 'glow-button-accent'}>
+                        {event.rsvpd ? <><CheckCircle className="mr-2 h-4 w-4" /> RSVP'd</> : <><PlusCircle className="mr-2 h-4 w-4" /> RSVP Now</>}
+                        </Button>
+                    </CardFooter>
+                    </div>
+                </Card>
+                </motion.div>
+            ))
+          )}
+        </motion.div>
+      </div>
+    </div>
+  );
+}
