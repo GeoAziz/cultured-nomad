@@ -14,7 +14,7 @@ import {
   Tooltip,
 } from 'recharts';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, getFirestore } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, where } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -48,7 +48,7 @@ const chartData = [
 
 
 export default function AdminDashboardPage() {
-    const [stats, setStats] = useState({ users: 0, revenue: 56345, pending: 12, services: 45 });
+    const [stats, setStats] = useState({ users: 0, revenue: 56345, pending: 0, services: 0 });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -56,13 +56,21 @@ export default function AdminDashboardPage() {
             setLoading(true);
             try {
                 const db = getFirestore(app);
-                const usersSnapshot = await getDocs(collection(db, "users"));
-                // In a real app, other stats would come from dedicated collections/analytics
+                
+                const usersCollection = collection(db, "users");
+                const servicesCollection = collection(db, "services");
+
+                const [usersSnapshot, pendingSnapshot, approvedSnapshot] = await Promise.all([
+                    getDocs(usersCollection),
+                    getDocs(query(servicesCollection, where('status', '==', 'Pending'))),
+                    getDocs(query(servicesCollection, where('status', '==', 'Approved')))
+                ]);
+
                 setStats({
                     users: usersSnapshot.size,
                     revenue: 56345, // Placeholder
-                    pending: 12, // Placeholder
-                    services: 45, // Placeholder
+                    pending: pendingSnapshot.size,
+                    services: approvedSnapshot.size,
                 });
             } catch (error) {
                 console.error("Error fetching admin dashboard data:", error);
