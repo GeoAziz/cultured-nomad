@@ -70,6 +70,7 @@ export default function MentorshipPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const [dialogOpen, setDialogOpen] = useState(false);
 
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function MentorshipPage() {
         });
         toast({ title: "Request Sent!", description: "Your mentorship request has been sent. You'll be notified when they respond." });
         setRequestMessage('');
+        setDialogOpen(false);
     } catch(error: any) {
         console.error("Error requesting mentorship", error);
         toast({ title: "Error", description: error.message || "Something went wrong.", variant: 'destructive' });
@@ -174,7 +176,7 @@ export default function MentorshipPage() {
                 <p className="text-lg text-foreground/80 mt-2">{(matchOfTheWeek as any).industry} Guru</p>
                 <p className="mt-4 text-sm text-primary italic">"{matchReason}"</p>
                 <p className="mt-4">{matchOfTheWeek.bio}</p>
-                <Dialog>
+                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                     <DialogTrigger asChild>
                         <Button className="glow-button mt-6 w-fit" disabled={user?.role === 'mentor'}>
                             <Wand2 className="mr-2 h-4 w-4" />
