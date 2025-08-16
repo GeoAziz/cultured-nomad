@@ -30,20 +30,16 @@ export default function SignupPage() {
     }
     setLoading(true);
     setError(null);
-    try {
-      await signup(email, password, name, {
+    
+    await signup(email, password, name, {
         onSuccess: () => {
           router.push('/dashboard');
         },
         onError: (err) => {
           setError(err);
+          setLoading(false);
         },
-      });
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -51,67 +47,68 @@ export default function SignupPage() {
       title="Join the Sisterhood"
       description="Create your account to begin your journey with Cultured Nomads."
     >
-      {error && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Alert variant="destructive">
-                <ShieldAlert className="h-4 w-4" />
-                <AlertTitle>Registration Failed</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-            </Alert>
-        </motion.div>
-      )}
-      <form className="space-y-4" onSubmit={handleSignup}>
-        <AuthInput
-          id="name"
-          type="text"
-          placeholder="Your Full Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          icon={User}
-          disabled={loading}
-          required
-        />
-        <AuthInput
-          id="email"
-          type="email"
-          placeholder="your.email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          icon={Mail}
-          disabled={loading}
-          required
-        />
-        <AuthInput
-          id="password"
-          type="password"
-          placeholder="Create a strong password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          icon={KeyRound}
-          disabled={loading}
-          required
-        />
-        <AuthInput
-          id="confirmPassword"
-          type="password"
-          placeholder="Confirm your password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          icon={ShieldCheck}
-          disabled={loading}
-          required
-        />
-        <Button type="submit" className="w-full glow-button-accent text-lg py-6" disabled={loading}>
-          {loading ? <Loader2 className="animate-spin" /> : 'Create Account'}
-        </Button>
-      </form>
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{' '}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
-          Sign In
-        </Link>
-      </p>
+        <div className="space-y-4">
+            {error && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <Alert variant="destructive">
+                        <ShieldAlert className="h-4 w-4" />
+                        <AlertTitle>Registration Failed</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                </motion.div>
+            )}
+            <form className="space-y-4" onSubmit={handleSignup}>
+                <AuthInput
+                id="name"
+                type="text"
+                placeholder="Your Full Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                icon={User}
+                disabled={loading}
+                required
+                />
+                <AuthInput
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                icon={Mail}
+                disabled={loading}
+                required
+                />
+                <AuthInput
+                id="password"
+                type="password"
+                placeholder="Create a strong password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                icon={KeyRound}
+                disabled={loading}
+                required
+                />
+                <AuthInput
+                id="confirmPassword"
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                icon={ShieldCheck}
+                disabled={loading}
+                required
+                />
+                <Button type="submit" className="w-full glow-button-accent text-lg py-6" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" /> : 'Create Account'}
+                </Button>
+            </form>
+            <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link href="/login" className="font-semibold text-primary hover:underline">
+                Sign In
+                </Link>
+            </p>
+        </div>
     </AuthLayout>
   );
 }
-
