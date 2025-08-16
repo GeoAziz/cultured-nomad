@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             setUser(userProfile);
         } else {
-          // This case can happen if a user is deleted from Firestore but not Auth.
+          // This can happen if a user is deleted from Firestore but not Auth.
           // Treat them as logged out.
           setUser(null);
           await signOut(auth);
@@ -123,12 +123,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
-          await updateProfile(newUser, { displayName: name });
-
           // The user document is now created by the `assignUserRole` cloud function.
-          // We don't need to set it here on the client.
-          // onAuthStateChanged will pick up the new user and their profile.
+          // We only need to update the auth profile display name.
+          await updateProfile(newUser, { displayName: name });
           
+          // onAuthStateChanged will pick up the new user and their profile.
           callbacks.onSuccess();
       } catch (error: any) {
           callbacks.onError(getFirebaseAuthErrorMessage(error.code));
@@ -149,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
-    // onAuthStateChanged will handle setting user to null
+    // onAuthStateChanged will set user to null
   };
 
   const value = {
@@ -179,6 +178,7 @@ const getFirebaseAuthErrorMessage = (errorCode: string): string => {
         case "auth/weak-password":
             return "Password should be at least 6 characters.";
         default:
+            console.error("Unhandled Firebase Auth Error Code:", errorCode);
             return "An unexpected error occurred. Please try again.";
     }
 };

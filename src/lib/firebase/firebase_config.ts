@@ -1,6 +1,6 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 // TODO: Add SDKs for Firebase products that you want to use
@@ -20,19 +20,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-console.log('Initializing Firebase with config:', {
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket
-});
-
-// Prevent re-initialization on the client
-export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Firebase Auth with persistence
 export const auth = getAuth(app);
+
+// It's safe to call this every time, it doesn't re-apply if already set.
 setPersistence(auth, browserLocalPersistence)
-  .then(() => console.log('Firebase Auth persistence set to local'))
   .catch(error => console.error('Error setting auth persistence:', error));
 
 // Initialize Firestore
