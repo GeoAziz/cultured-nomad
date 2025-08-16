@@ -33,10 +33,6 @@ export default function BroadcastPage() {
             });
             return;
         }
-         if (user?.role !== 'admin') {
-            toast({ title: "Permission Denied", description: "You are not authorized to perform this action.", variant: "destructive" });
-            return;
-        }
 
         setLoading(true);
         try {
