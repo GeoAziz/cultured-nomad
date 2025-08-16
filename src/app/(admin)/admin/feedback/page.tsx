@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { collection, getDocs, getFirestore, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, orderBy, Timestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -28,7 +28,7 @@ interface Feedback {
   subject: string;
   user: string;
   status: 'Open' | 'In Progress' | 'Reviewed' | 'Archived';
-  submitted: string;
+  submitted: Timestamp;
 }
 
 const getStatusClass = (status: string) => {
@@ -58,13 +58,18 @@ export default function FeedbackPage() {
   useEffect(() => {
     const fetchFeedback = async () => {
       setLoading(true);
-      const db = getFirestore(app);
-      const feedbackCollection = collection(db, 'feedback');
-      const q = query(feedbackCollection, orderBy('submitted', 'desc'));
-      const feedbackSnapshot = await getDocs(q);
-      const feedbackList = feedbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
-      setFeedbackData(feedbackList);
-      setLoading(false);
+      try {
+        const db = getFirestore(app);
+        const feedbackCollection = collection(db, 'feedback');
+        const q = query(feedbackCollection, orderBy('submitted', 'desc'));
+        const feedbackSnapshot = await getDocs(q);
+        const feedbackList = feedbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
+        setFeedbackData(feedbackList);
+      } catch (error) {
+        console.error("Error fetching feedback:", error)
+      } finally {
+        setLoading(false);
+      }
     }
     fetchFeedback();
   }, []);
@@ -133,7 +138,7 @@ export default function FeedbackPage() {
                           {item.status}
                         </Badge>
                       </TableCell>
-                       <TableCell>{new Date(item.submitted).toLocaleDateString()}</TableCell>
+                       <TableCell>{item.submitted.toDate().toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm">View Details</Button>
                       </TableCell>
