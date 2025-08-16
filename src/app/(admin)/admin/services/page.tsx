@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X, Eye } from 'lucide-react';
 import PageHeader from '@/components/shared/page-header';
@@ -17,16 +18,18 @@ import {
 } from "@/components/ui/table"
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import { collection, getDocs, getFirestore, query, where } from 'firebase/firestore';
+import { app } from '@/lib/firebase/firebase_config';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const serviceListings = [
-  { id: 'SRV001', title: 'AI-Powered Logo Design', creator: 'Aisha Khan', status: 'Pending', category: 'Design', price: 250 },
-  { id: 'SRV002', title: 'Web3 Smart Contract Audit', creator: 'Zoe Hart', status: 'Approved', category: 'Web3', price: 1500 },
-  { id: 'SRV003', title: 'Personalized Career Coaching', creator: 'Priya Sharma', status: 'Approved', category: 'Mentorship', price: 100 },
-  { id: 'SRV004', title: 'VR Experience Prototyping', creator: 'Mei Lin', status: 'Pending', category: 'XR', price: 800 },
-  { id: 'SRV005', title: 'Fintech API Integration', creator: 'Fatima Al-Jamil', status: 'Rejected', category: 'Fintech', price: 1200 },
-  { id: 'SRV006', title: 'Ghostwriting: Sci-Fi Novel', creator: 'Aisha Khan', status: 'Approved', category: 'Writing', price: 3000 },
-];
+interface Service {
+    id: string;
+    title: string;
+    creator: string;
+    status: 'Pending' | 'Approved' | 'Rejected';
+    category: string;
+    price: number;
+}
 
 const getStatusClass = (status: string) => {
   switch (status) {
@@ -39,9 +42,33 @@ const getStatusClass = (status: string) => {
 
 
 export default function ServicesPage() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('pending');
 
-  const renderTable = (status: string) => {
-    const filteredServices = serviceListings.filter(s => status === 'All' || s.status === status);
+  useEffect(() => {
+    const fetchServices = async () => {
+      setLoading(true);
+      const db = getFirestore(app);
+      const servicesCollection = collection(db, 'services');
+      let q;
+      if (activeTab === 'all') {
+        q = query(servicesCollection);
+      } else {
+        const status = activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
+        q = query(servicesCollection, where('status', '==', status));
+      }
+      
+      const serviceSnapshot = await getDocs(q);
+      const serviceList = serviceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+      setServices(serviceList);
+      setLoading(false);
+    }
+    fetchServices();
+  }, [activeTab]);
+
+
+  const renderTable = (data: Service[]) => {
     return (
         <Table>
           <TableHeader>
@@ -55,30 +82,47 @@ export default function ServicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredServices.map((service) => (
-              <TableRow key={service.id} className="border-slate-800 hover:bg-slate-900/50">
-                <TableCell className="font-medium">{service.title}</TableCell>
-                <TableCell>{service.creator}</TableCell>
-                <TableCell>{service.category}</TableCell>
-                <TableCell>${service.price.toFixed(2)}</TableCell>
-                <TableCell>
-                  <Badge className={cn('font-semibold border-none', getStatusClass(service.status))}>
-                    {service.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right space-x-2">
-                    <Button variant="outline" size="icon" className="border-slate-600 hover:bg-slate-800">
-                        <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="border-green-500/50 text-green-400 hover:bg-green-500/20">
-                        <Check className="h-4 w-4" />
-                    </Button>
-                     <Button variant="outline" size="icon" className="border-red-500/50 text-red-400 hover:bg-red-500/20">
-                        <X className="h-4 w-4" />
-                    </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {loading ? (
+                Array.from({length: 3}).map((_, i) => (
+                    <TableRow key={i} className="border-slate-800">
+                        <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                        <TableCell className="text-right space-x-2">
+                            <Skeleton className="h-8 w-8 inline-block rounded" />
+                            <Skeleton className="h-8 w-8 inline-block rounded" />
+                            <Skeleton className="h-8 w-8 inline-block rounded" />
+                        </TableCell>
+                    </TableRow>
+                ))
+            ) : (
+                data.map((service) => (
+                <TableRow key={service.id} className="border-slate-800 hover:bg-slate-900/50">
+                    <TableCell className="font-medium">{service.title}</TableCell>
+                    <TableCell>{service.creator}</TableCell>
+                    <TableCell>{service.category}</TableCell>
+                    <TableCell>${service.price.toFixed(2)}</TableCell>
+                    <TableCell>
+                    <Badge className={cn('font-semibold border-none', getStatusClass(service.status))}>
+                        {service.status}
+                    </Badge>
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                        <Button variant="outline" size="icon" className="border-slate-600 hover:bg-slate-800">
+                            <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="border-green-500/50 text-green-400 hover:bg-green-500/20">
+                            <Check className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="border-red-500/50 text-red-400 hover:bg-red-500/20">
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </TableCell>
+                </TableRow>
+                ))
+            )}
           </TableBody>
         </Table>
     )
@@ -98,17 +142,17 @@ export default function ServicesPage() {
            <CardTitle className="font-headline text-xl text-slate-200">Management Console</CardTitle>
          </CardHeader>
          <CardContent>
-            <Tabs defaultValue="pending" className="w-full">
+            <Tabs defaultValue="pending" className="w-full" onValueChange={(value) => setActiveTab(value)}>
               <TabsList className="grid w-full grid-cols-4 bg-slate-900/50">
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="approved">Approved</TabsTrigger>
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
                 <TabsTrigger value="all">All</TabsTrigger>
               </TabsList>
-              <TabsContent value="pending" className="mt-4">{renderTable('Pending')}</TabsContent>
-              <TabsContent value="approved" className="mt-4">{renderTable('Approved')}</TabsContent>
-              <TabsContent value="rejected" className="mt-4">{renderTable('Rejected')}</TabsContent>
-              <TabsContent value="all" className="mt-4">{renderTable('All')}</TabsContent>
+              <TabsContent value="pending" className="mt-4">{renderTable(services)}</TabsContent>
+              <TabsContent value="approved" className="mt-4">{renderTable(services)}</TabsContent>
+              <TabsContent value="rejected" className="mt-4">{renderTable(services)}</TabsContent>
+              <TabsContent value="all" className="mt-4">{renderTable(services)}</TabsContent>
             </Tabs>
          </CardContent>
        </Card>
