@@ -14,6 +14,7 @@ import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carouse
 import { collection, getDocs, query, orderBy, where, getFirestore, Timestamp, limit } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
 
 const moods = ['All', 'Wins', 'Fails', 'Lessons', 'Real Talk'];
 
@@ -114,10 +115,12 @@ export default function StoriesPage() {
                         </Button>
                     ))}
                 </div>
-                <Button className="glow-button-accent hidden sm:flex">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Entry
-                </Button>
+                 <Link href="/stories/new">
+                    <Button className="glow-button-accent hidden sm:flex">
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Entry
+                    </Button>
+                </Link>
             </div>
 
             <Carousel opts={{ loop: true, align: "start" }} className="w-full">
