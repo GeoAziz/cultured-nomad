@@ -8,7 +8,6 @@ import {
   useContext,
 } from 'react';
 import {
-  getAuth,
   onAuthStateChanged,
   User,
   signInWithEmailAndPassword,
@@ -17,8 +16,8 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-import { app, auth, db } from '@/lib/firebase/firebase_config';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -99,15 +98,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('Starting auth process...', { email });
       
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass)
-        .catch(error => {
-          console.error('Firebase auth error:', {
-            code: error.code,
-            message: error.message,
-            fullError: error
-          });
-          throw error;
+      // First, check if Firebase is properly initialized
+      if (!auth) {
+        console.error('Firebase Auth is not initialized');
+        throw new Error('Authentication service is not available');
+      }
+      
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      } catch (error: any) {
+        console.error('Firebase auth error:', {
+          code: error?.code,
+          message: error?.message,
+          name: error?.name,
+          stack: error?.stack
         });
+        throw error;
+      }
 
       console.log('Auth successful, fetching user doc...');
       

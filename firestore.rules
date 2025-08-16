@@ -20,12 +20,12 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users: Can be read by anyone, but only written by the owner or an admin.
+    // Users: Can be read by anyone who is signed in
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn();  // Allow all authenticated users to read user documents
       allow create: if isSignedIn();
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isOwner(userId);  // Only allow users to update their own documents for now
+      allow delete: if false;  // Disable deletion for safety
     }
 
     // Events: Publicly readable, but only writeable by mentors or admins.

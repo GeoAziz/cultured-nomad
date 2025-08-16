@@ -22,9 +22,15 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      setError('Please provide both email and password');
+      return;
+    }
+    
     console.log('Attempting login with:', { email });
     setLoading(true);
     setError(null);
+    
     try {
       await login(email, password, {
         onSuccess: (role) => {
@@ -35,26 +41,15 @@ export default function LoginPage() {
             router.push('/dashboard');
           }
         },
-        onError: (err: any) => {
-          console.error('Login error details:', { 
-            error: err,
-            message: typeof err === 'object' && err !== null ? err.message : err,
-            code: typeof err === 'object' && err !== null ? err.code : undefined,
-            stack: typeof err === 'object' && err !== null ? err.stack : undefined
-          });
-          setError(typeof err === 'string' ? err : err?.message || 'Login failed');
+        onError: (err) => {
+          console.error('Login error:', err);
+          setError(err);
         },
       });
     } catch (err: any) {
-      console.error('Login exception details:', {
-        error: err,
-        message: err?.message,
-        code: err?.code,
-        stack: err?.stack
-      });
-      setError(err.message || 'An unexpected error occurred.');
+      console.error('Login exception:', err);
+      setError(err?.message || 'An unexpected error occurred');
     } finally {
-      console.log('Login attempt finished');
       setLoading(false);
     }
   };
