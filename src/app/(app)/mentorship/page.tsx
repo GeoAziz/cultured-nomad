@@ -27,7 +27,9 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, UserProfile } from '@/hooks/use-auth';
+import { matchMentor } from '@/ai/flows/mentor-matcher-flow';
+
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -55,20 +57,15 @@ const reviews = [
     { name: 'Fatima Al-Jamil', text: 'The mission briefing with my mentor was so inspiring and gave me a clear path forward.', rating: 5, avatar: 'https://placehold.co/100x100.png', dataAiHint: 'woman professional' },
 ]
 
-interface Mentor {
-    id: string;
-    name: string;
-    avatar: string;
-    industry: string;
-    role: string;
-    bio: string;
-    dataAiHint?: string;
+interface Mentor extends UserProfile {
+    isMentor: boolean;
 }
 
 export default function MentorshipPage() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [matchOfTheWeek, setMatchOfTheWeek] = useState<Mentor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [matchReason, setMatchReason] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -76,22 +73,53 @@ export default function MentorshipPage() {
 
 
   useEffect(() => {
-    const fetchMentors = async () => {
+    const fetchMentorsAndMatch = async () => {
+        setLoading(true);
         const db = getFirestore(app);
         const membersCollection = collection(db, 'users');
         const q = query(membersCollection, where('isMentor', '==', true));
         const mentorSnapshot = await getDocs(q);
-        const mentorList = mentorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mentor));
+        const mentorList = mentorSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Mentor));
         setMentors(mentorList);
-        if (mentorList.length > 0) {
-            // Simple logic to pick a "match of the week"
-            setMatchOfTheWeek(mentorList[new Date().getDay() % mentorList.length]);
+
+        if (user && mentorList.length > 0) {
+            try {
+                // Prepare input for the AI flow
+                const flowInput = {
+                    user: {
+                        bio: user.bio || 'A new member seeking guidance.',
+                        interests: (user as any).interests || []
+                    },
+                    mentors: mentorList.map(m => ({
+                        id: m.uid,
+                        name: m.name || '',
+                        bio: m.bio || '',
+                        industry: (m as any).industry || 'Tech',
+                        interests: (m as any).interests || [],
+                    }))
+                };
+                const { mentorId, reason } = await matchMentor(flowInput);
+                const bestMatch = mentorList.find(m => m.uid === mentorId);
+                setMatchOfTheWeek(bestMatch || mentorList[0]);
+                setMatchReason(reason);
+            } catch (aiError) {
+                 console.error("AI matching failed:", aiError);
+                 // Fallback to simple logic if AI fails
+                 setMatchOfTheWeek(mentorList[new Date().getDay() % mentorList.length]);
+                 setMatchReason("A great mentor to start your journey.");
+            }
+        } else if (mentorList.length > 0) {
+            // Fallback for non-logged-in users or if user data is missing
+            setMatchOfTheWeek(mentorList[0]);
         }
+
         setLoading(false);
     };
 
-    fetchMentors();
-  }, []);
+    if(user !== undefined) {
+        fetchMentorsAndMatch();
+    }
+  }, [user]);
 
   const handleRequestMentorship = async (mentorId: string) => {
     if (!requestMessage.trim()) {
@@ -102,7 +130,11 @@ export default function MentorshipPage() {
     try {
         const functions = getFunctions(app);
         const requestMentorship = httpsCallable(functions, 'requestMentorship');
-        await requestMentorship({ mentorId, message: requestMessage });
+        await requestMentorship({ 
+            mentorId, 
+            message: requestMessage,
+            userBio: user?.bio, // Pass additional context
+        });
         toast({ title: "Request Sent!", description: "Your mentorship request has been sent. You'll be notified when they respond." });
         setRequestMessage('');
     } catch(error: any) {
@@ -137,9 +169,10 @@ export default function MentorshipPage() {
             <Card className="glass-card overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2">
                 <div className="p-8 flex flex-col justify-center">
-                <Badge className="w-fit bg-primary/20 text-primary border-primary/30 mb-4">Your Match of the Week</Badge>
+                <Badge className="w-fit bg-primary/20 text-primary border-primary/30 mb-4">Your AI-Powered Match</Badge>
                 <h2 className="font-headline text-3xl md:text-4xl font-bold">{matchOfTheWeek.name}</h2>
-                <p className="text-lg text-foreground/80 mt-2">{matchOfTheWeek.industry} Guru</p>
+                <p className="text-lg text-foreground/80 mt-2">{(matchOfTheWeek as any).industry} Guru</p>
+                <p className="mt-4 text-sm text-primary italic">"{matchReason}"</p>
                 <p className="mt-4">{matchOfTheWeek.bio}</p>
                 <Dialog>
                     <DialogTrigger asChild>
@@ -167,7 +200,7 @@ export default function MentorshipPage() {
                             <DialogClose asChild>
                                 <Button type="button" variant="secondary">Cancel</Button>
                             </DialogClose>
-                            <Button onClick={() => handleRequestMentorship(matchOfTheWeek.id)} disabled={isSubmitting}>
+                            <Button onClick={() => handleRequestMentorship(matchOfTheWeek.uid)} disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Send Request
                             </Button>
@@ -176,7 +209,7 @@ export default function MentorshipPage() {
                 </Dialog>
                 </div>
                 <div className="relative min-h-[300px]">
-                    <Image src={matchOfTheWeek.avatar} alt={matchOfTheWeek.name} layout="fill" objectFit="cover" data-ai-hint={matchOfTheWeek.dataAiHint} />
+                    <Image src={matchOfTheWeek.avatar!} alt={matchOfTheWeek.name!} layout="fill" objectFit="cover" data-ai-hint={matchOfTheWeek.dataAiHint} />
                 </div>
             </div>
             </Card>
@@ -203,14 +236,14 @@ export default function MentorshipPage() {
              ))
           ) : (
             mentors.map(mentor => (
-                <motion.div key={mentor.id} variants={itemVariants} whileHover={{ y: -5 }}>
+                <motion.div key={mentor.uid} variants={itemVariants} whileHover={{ y: -5 }}>
                 <Card className="glass-card text-center p-6 flex flex-col items-center">
                     <Avatar className="w-24 h-24 mb-4 border-2 border-primary/50">
-                    <AvatarImage src={mentor.avatar} alt={mentor.name} data-ai-hint={mentor.dataAiHint} />
+                    <AvatarImage src={mentor.avatar} alt={mentor.name!} data-ai-hint={mentor.dataAiHint} />
                     <AvatarFallback>{mentor.name?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <h3 className="font-headline text-lg font-bold">{mentor.name}</h3>
-                    <p className="text-sm text-foreground/70 mb-4">{mentor.industry}</p>
+                    <p className="text-sm text-foreground/70 mb-4">{(mentor as any).industry}</p>
                     <Button variant="outline" className="w-full">View Profile</Button>
                 </Card>
                 </motion.div>
@@ -252,5 +285,3 @@ export default function MentorshipPage() {
     </div>
   );
 }
-
-    
