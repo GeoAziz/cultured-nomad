@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef }from 'react';
 import PageHeader from '@/components/shared/page-header';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -11,7 +11,7 @@ import { Send, Smile, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc, Unsubscribe } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
@@ -92,31 +92,48 @@ export default function ConnectPage() {
     setLoadingMessages(true);
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
-    // This query is now more specific, looking for messages where the participants array contains both users.
-    const q = query(messagesCollection, 
-        where('participants', 'in', [[user.uid, selectedChat.id], [selectedChat.id, user.uid]]),
+    
+    // More efficient query: We listen to two separate queries and combine the results.
+    const q1 = query(messagesCollection, 
+        where('from', '==', user.uid),
+        where('to', '==', selectedChat.id),
         orderBy('timestamp', 'asc')
     );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const messageList = snapshot.docs
-            .map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    content: data.content,
-                    senderId: data.from,
-                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
-                    self: data.from === user.uid,
-                } as Message;
-            })
-            .filter(Boolean) as Message[]; 
 
-        setMessages(messageList);
+    const q2 = query(messagesCollection, 
+        where('from', '==', selectedChat.id),
+        where('to', '==', user.uid),
+        orderBy('timestamp', 'asc')
+    );
+
+    let unsubscribes: Unsubscribe[] = [];
+    let allMessages: Message[] = [];
+
+    const processSnapshot = (snapshot: any) => {
+        const newMessages = snapshot.docs.map((doc: any) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                content: data.content,
+                senderId: data.from,
+                timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
+                self: data.from === user.uid,
+            } as Message;
+        });
+
+        // Combine and sort messages
+        allMessages = [...allMessages.filter(m => !newMessages.some(nm => nm.id === m.id)), ...newMessages];
+        allMessages.sort((a, b) => new Date('1970/01/01 ' + a.timestamp).getTime() - new Date('1970/01/01 ' + b.timestamp).getTime());
+        
+        setMessages(allMessages);
         setLoadingMessages(false);
-    });
+    }
+    
+    unsubscribes.push(onSnapshot(q1, processSnapshot));
+    unsubscribes.push(onSnapshot(q2, processSnapshot));
+    
 
-    return () => unsubscribe();
+    return () => unsubscribes.forEach(unsub => unsub());
   }, [selectedChat, user]);
 
   const handleSelectChat = (chat: ChatUser) => {
