@@ -36,7 +36,7 @@ export default function LoginPage() {
           }
         },
         onError: (err) => {
-          console.error('Login error from callback:', err);
+          console.error('Login error from callback:', err); // Log the full error object
           setError(err);
         },
       });
