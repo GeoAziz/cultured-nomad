@@ -1,7 +1,7 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getAuth as getFirebaseAuth, browserLocalPersistence, setPersistence, type Auth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration is loaded from environment variables
@@ -16,19 +16,28 @@ const firebaseConfig = {
   ...(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID && { measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }),
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// A function to initialize and get the Firebase App instance
+function getAppInstance(): FirebaseApp {
+    if (!getApps().length) {
+        return initializeApp(firebaseConfig);
+    }
+    return getApp();
+}
 
-// Initialize Firebase Auth
-export const auth = getAuth(app);
-
-// Set persistence to local storage
-// It's safe to call this every time, it doesn't re-apply if already set.
-if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence)
-    .catch(error => console.error('Error setting auth persistence:', error));
+// A function to get the Firebase Auth instance
+function getAuthInstance(): Auth {
+    const app = getAppInstance();
+    const auth = getFirebaseAuth(app);
+    // It's safe to call this every time, it doesn't re-apply if already set.
+    if (typeof window !== 'undefined') {
+      setPersistence(auth, browserLocalPersistence)
+        .catch(error => console.error('Error setting auth persistence:', error));
+    }
+    return auth;
 }
 
 
-// Initialize Firestore
+// Export functions to get instances
+export const app = getAppInstance();
+export const auth = getAuthInstance();
 export const db = getFirestore(app);

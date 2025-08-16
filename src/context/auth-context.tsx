@@ -95,7 +95,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(userProfile);
         } else {
           console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
-          // Cloud function will create the doc. Listener will pick it up again.
           setUser(null);
         }
       } else {
@@ -119,11 +118,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (userDoc.exists()) {
         const userRole = userDoc.data().role;
-        // The onAuthStateChanged listener will handle setting the global state,
-        // we just need to call the callback for routing.
         callbacks.onSuccess(userRole);
       } else {
-        // This case should not happen in a normal flow.
         await signOut(auth);
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
@@ -148,8 +144,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           await updateProfile(newUser, { displayName: name });
           
-          // The `assignUserRole` cloud function will create the Firestore doc.
-          // The `onAuthStateChanged` listener will then pick it up.
           callbacks.onSuccess();
 
       } catch (error: any) {
