@@ -1,100 +1,84 @@
 
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { faker } from '@faker-js/faker';
-import serviceAccount from '../serviceAccountKey.json' with { type: 'json' };
+import admin from 'firebase-admin';
+import { serviceAccount } from '../serviceAccountKey.json' assert { type: 'json' };
 
-// --- Configuration ---
-const TOTAL_ADMINS = 2;
-const TOTAL_MENTORS = 3;
-const TOTAL_MEMBERS = 5;
-const DEFAULT_PASSWORD = 'password123';
+const usersToSeed = [
+    // Admins
+    { email: 'Christina_Harris60@hotmail.com', role: 'admin', name: 'Christina Harris', isMentor: false, industry: 'Tech' },
+    { email: 'Courtney.Robel@hotmail.com', role: 'admin', name: 'Courtney Robel', isMentor: false, industry: 'Fintech' },
+    // Mentors
+    { email: 'Kristi.Waelchi1@hotmail.com', role: 'mentor', name: 'Kristi Waelchi', isMentor: true, industry: 'Creative' },
+    { email: 'Kayla.Cremin@gmail.com', role: 'mentor', name: 'Kayla Cremin', isMentor: true, industry: 'Healthcare' },
+    { email: 'Randall_Fay@gmail.com', role: 'mentor', name: 'Randall Fay', isMentor: true, industry: 'AI/ML' },
+    // Members
+    { email: 'Paula_Hessel7@yahoo.com', role: 'member', name: 'Paula Hessel', isMentor: false, industry: 'Fashion' },
+    { email: 'Leslie.Lowe39@hotmail.com', role: 'member', name: 'Leslie Lowe', isMentor: false, industry: 'Tech' },
+    { email: 'Clarence.Ernser93@yahoo.com', role: 'member', name: 'Clarence Ernser', isMentor: false, industry: 'Fintech' },
+    { email: 'Felix_Christiansen@hotmail.com', role: 'member', name: 'Felix Christiansen', isMentor: false, industry: 'Creative' },
+    { email: 'Ms.Joanne@gmail.com', role: 'member', name: 'Joanne', isMentor: false, industry: 'Healthcare' },
+];
 
-// --- Initialize Firebase Admin SDK ---
-try {
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
-} catch (e) {
-  if (e.code !== 'app/duplicate-app') {
-    console.error('Firebase Admin SDK initialization error:', e);
+const defaultPassword = 'password123';
+
+async function seedDatabase() {
+  console.log('--- Starting database seed ---');
+
+  try {
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`,
+      });
+    }
+
+    const auth = admin.auth();
+    const db = admin.firestore();
+
+    for (const userData of usersToSeed) {
+        try {
+            console.log(`Creating user: ${userData.email} with role: ${userData.role}`);
+            
+            // 1. Create Auth user
+            const userRecord = await auth.createUser({
+                email: userData.email,
+                password: defaultPassword,
+                displayName: userData.name,
+                photoURL: `https://placehold.co/150x150.png?text=${userData.name.charAt(0)}`,
+            });
+            
+            // 2. Create Firestore user document
+            await db.collection('users').doc(userRecord.uid).set({
+                uid: userRecord.uid,
+                name: userData.name,
+                email: userData.email,
+                role: userData.role,
+                isMentor: userData.isMentor,
+                industry: userData.industry,
+                avatar: userRecord.photoURL,
+                bio: `A passionate ${userData.role} in the ${userData.industry} field.`,
+                interests: [userData.industry],
+                joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            console.log(`Successfully created: ${userData.email}`);
+
+        } catch (error) {
+            if (error.code === 'auth/email-already-exists') {
+                console.warn(`User already exists, skipping: ${userData.email}`);
+            } else {
+                console.error(`Error creating user ${userData.email}:`, error.message);
+                // We'll allow the script to continue to try and seed other users
+            }
+        }
+    }
+
+    console.log('--- Seeding finished successfully! ---');
+
+  } catch (error) {
+    console.error('--- Seeding failed! ---');
+    console.error('An unexpected error occurred during the seeding process:', error);
     process.exit(1);
   }
 }
 
-const auth = getAuth();
-const db = getFirestore();
-
-// --- Data Generation ---
-const generateUser = (role) => ({
-  name: faker.person.fullName(),
-  email: faker.internet.email(),
-  avatar: `https://placehold.co/150x150.png`,
-  role: role,
-  bio: faker.lorem.paragraph(),
-  interests: [faker.commerce.department(), faker.commerce.department()],
-  industry: faker.company.bsNoun(),
-  isMentor: role === 'mentor',
-  joinedAt: new Date(),
-  dataAiHint: 'woman portrait',
-});
-
-const admins = Array.from({ length: TOTAL_ADMINS }, () => generateUser('admin'));
-const mentors = Array.from({ length: TOTAL_MENTORS }, () => generateUser('mentor'));
-const members = Array.from({ length: TOTAL_MEMBERS }, () => generateUser('member'));
-const allUsers = [...admins, ...mentors, ...members];
-
-// --- Main Seeding Function ---
-async function seedDatabase() {
-  console.log('--- Starting database seed ---');
-  console.log(`Default password for all users: ${DEFAULT_PASSWORD}`);
-
-  for (const user of allUsers) {
-    try {
-      console.log(`\nProcessing user: ${user.email} (${user.role})`);
-
-      // 1. Create user in Firebase Authentication
-      const userRecord = await auth.createUser({
-        email: user.email,
-        password: DEFAULT_PASSWORD,
-        displayName: user.name,
-        photoURL: user.avatar,
-      });
-      console.log(` -> Successfully created Auth user with UID: ${userRecord.uid}`);
-
-      // 2. Create user document in Firestore
-      const userDocRef = db.collection('users').doc(userRecord.uid);
-      await userDocRef.set({
-        uid: userRecord.uid,
-        name: user.name,
-        email: user.email,
-        avatar: user.avatar,
-        role: user.role,
-        bio: user.bio,
-        interests: user.interests,
-        industry: user.industry,
-        isMentor: user.isMentor,
-        joinedAt: user.joinedAt,
-        dataAiHint: user.dataAiHint,
-      });
-      console.log(` -> Successfully created Firestore document for UID: ${userRecord.uid}`);
-
-    } catch (error) {
-      console.error(`\n--- Seeding FAILED for user ${user.email} ---`);
-      console.error('Error Code:', error.code);
-      console.error('Error Message:', error.message);
-      // Stop the entire process if one user fails
-      process.exit(1);
-    }
-  }
-
-  console.log('\n--- Database seeded successfully! ---');
-  console.log('Created a total of ' + allUsers.length + ' users.');
-}
-
-seedDatabase().catch((error) => {
-  console.error('\n--- An unexpected error occurred during the seed process ---');
-  console.error(error);
-  process.exit(1);
-});
+seedDatabase();
