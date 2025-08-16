@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -42,8 +43,9 @@ interface User {
 
 const getRoleClass = (role: string) => {
     switch(role?.toLowerCase()) {
-        case 'mentor': return 'bg-primary/20 text-primary';
-        case 'techie': return 'bg-accent/20 text-accent';
+        case 'mentor': return 'bg-green-500/20 text-green-400';
+        case 'seeker': return 'bg-blue-500/20 text-blue-400';
+        case 'techie': return 'bg-purple-500/20 text-purple-400';
         case 'admin': return 'bg-red-500/20 text-red-400';
         default: return 'bg-slate-500/20 text-slate-400';
     }
@@ -195,3 +197,4 @@ export default function UserManagementPage() {
     </motion.div>
   );
 }
+
