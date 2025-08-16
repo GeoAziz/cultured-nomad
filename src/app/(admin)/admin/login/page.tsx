@@ -28,11 +28,10 @@ export default function AdminLoginPage() {
     
     await login(email, password, {
       onSuccess: (role) => {
-        toast({ title: 'Authorization successful.' });
         if (role === 'admin') {
+          toast({ title: 'Authorization successful.' });
           router.push('/admin/dashboard');
         } else {
-          // This case should ideally not be hit due to login logic, but as a fallback:
           setError("You do not have administrative privileges.");
           setLoading(false);
         }

@@ -21,21 +21,39 @@ export default function AdminLayout({
 
   useEffect(() => {
     setIsMounted(true);
-    setPathname(window.location.pathname);
+    if (typeof window !== 'undefined') {
+      setPathname(window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
-    if (!loading && !user && isMounted && pathname !== '/admin/login' && pathname !== '/admin') {
-      router.push('/admin/login');
+    if (isMounted) {
+      if (loading) return; // Wait for auth state to be determined
+
+      const isAuthPage = pathname === '/admin/login' || pathname === '/admin';
+
+      if (!user && !isAuthPage) {
+        // If not logged in and not on an auth page, redirect to admin login
+        router.push('/admin/login');
+      } else if (user) {
+        if (user.role !== 'admin') {
+          // If logged in but not an admin, redirect to the main dashboard
+          router.push('/dashboard');
+        } else if (isAuthPage) {
+          // If logged in as admin and on an auth page, redirect to admin dashboard
+          router.push('/admin/dashboard');
+        }
+      }
     }
   }, [user, loading, router, isMounted, pathname]);
 
-  // Special case for login/splash pages to avoid layout shift
+  // Special case for login/splash pages to avoid layout shift while checking auth
   if (pathname === '/admin/login' || pathname === '/admin') {
     return <>{children}</>;
   }
   
-  if (loading || !user || !isMounted) {
+  // Show a loading screen while we verify the user's session and role
+  if (loading || !user || user.role !== 'admin' || !isMounted) {
      return (
       <div className="flex items-center justify-center h-screen bg-black">
         <Starfield />
@@ -44,6 +62,7 @@ export default function AdminLayout({
     );
   }
 
+  // If everything checks out, render the admin layout
   return (
     <div className="flex min-h-screen bg-black text-slate-200">
       <Starfield />
