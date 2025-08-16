@@ -12,11 +12,13 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend
 } from 'recharts';
 import { useEffect, useState } from 'react';
 import { collection, getDocs, getFirestore, query, where } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChartTooltipContent } from '@/components/ui/chart';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -31,24 +33,21 @@ const itemVariants = {
   visible: { y: 0, opacity: 1 },
 };
 
-const chartData = [
-    { name: 'Jan', total: 1200 },
-    { name: 'Feb', total: 2100 },
-    { name: 'Mar', total: 1800 },
-    { name: 'Apr', total: 2780 },
-    { name: 'May', total: 1890 },
-    { name: 'Jun', total: 2390 },
-    { name: 'Jul', total: 3490 },
-    { name: 'Aug', total: 2000 },
-    { name: 'Sep', total: 2780 },
-    { name: 'Oct', total: 1890 },
-    { name: 'Nov', total: 2390 },
-    { name: 'Dec', total: 3490 },
-];
+interface Service {
+    category: string;
+    price: number;
+    status: string;
+}
+
+interface ChartData {
+    name: string;
+    total: number;
+}
 
 
 export default function AdminDashboardPage() {
-    const [stats, setStats] = useState({ users: 0, revenue: 56345, pending: 0, services: 0 });
+    const [stats, setStats] = useState({ users: 0, revenue: 0, pending: 0, services: 0 });
+    const [chartData, setChartData] = useState<ChartData[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -60,18 +59,34 @@ export default function AdminDashboardPage() {
                 const usersCollection = collection(db, "users");
                 const servicesCollection = collection(db, "services");
 
-                const [usersSnapshot, pendingSnapshot, approvedSnapshot] = await Promise.all([
+                const [usersSnapshot, servicesSnapshot] = await Promise.all([
                     getDocs(usersCollection),
-                    getDocs(query(servicesCollection, where('status', '==', 'Pending'))),
-                    getDocs(query(servicesCollection, where('status', '==', 'Approved')))
+                    getDocs(servicesCollection)
                 ]);
+                
+                const allServices = servicesSnapshot.docs.map(doc => doc.data() as Service);
+
+                const pendingServices = allServices.filter(s => s.status === 'Pending').length;
+                const approvedServices = allServices.filter(s => s.status === 'Approved');
+
+                const totalRevenue = approvedServices.reduce((acc, service) => acc + service.price, 0);
+
+                const servicesByCategory: {[key: string]: number} = {};
+                approvedServices.forEach(service => {
+                    servicesByCategory[service.category] = (servicesByCategory[service.category] || 0) + 1;
+                });
+
+                const dynamicChartData = Object.entries(servicesByCategory).map(([name, total]) => ({ name, total }));
 
                 setStats({
                     users: usersSnapshot.size,
-                    revenue: 56345, // Placeholder
-                    pending: pendingSnapshot.size,
-                    services: approvedSnapshot.size,
+                    revenue: totalRevenue,
+                    pending: pendingServices,
+                    services: approvedServices.length,
                 });
+
+                setChartData(dynamicChartData);
+
             } catch (error) {
                 console.error("Error fetching admin dashboard data:", error);
             } finally {
@@ -100,7 +115,7 @@ export default function AdminDashboardPage() {
           <StatCard title="Total Users" value={loading ? '...' : stats.users.toLocaleString()} icon={Users} />
         </motion.div>
         <motion.div variants={itemVariants}>
-          <StatCard title="Revenue" value={loading ? '...' : `$${stats.revenue.toLocaleString()}`} icon={CreditCard} />
+          <StatCard title="Total Revenue" value={loading ? '...' : `$${stats.revenue.toLocaleString()}`} icon={CreditCard} />
         </motion.div>
         <motion.div variants={itemVariants}>
           <StatCard title="Pending Approvals" value={loading ? '...' : stats.pending.toLocaleString()} icon={ShieldCheck} />
@@ -113,7 +128,7 @@ export default function AdminDashboardPage() {
       <motion.div variants={itemVariants} className="grid grid-cols-1 gap-6">
         <Card className="admin-glass-card">
           <CardHeader>
-            <CardTitle className="font-headline text-xl text-slate-200">Revenue Overview</CardTitle>
+            <CardTitle className="font-headline text-xl text-slate-200">Approved Services by Category</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
             {loading ? <Skeleton className="w-full h-[350px]" /> : (
@@ -131,7 +146,7 @@ export default function AdminDashboardPage() {
                      fontSize={12}
                      tickLine={false}
                      axisLine={false}
-                     tickFormatter={(value) => `$${value}`}
+                     tickFormatter={(value) => `${value}`}
                    />
                     <Tooltip
                        contentStyle={{
