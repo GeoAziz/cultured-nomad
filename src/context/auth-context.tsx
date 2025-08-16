@@ -15,9 +15,11 @@ import {
   updateProfile,
   sendPasswordResetEmail,
   type User as FirebaseUser,
+  getAuth,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/firebase_config';
+import { app, db } from '@/lib/firebase/firebase_config';
+import type { Auth } from 'firebase/auth';
 
 export interface UserProfile {
     uid: string;
@@ -68,6 +70,9 @@ const getFirebaseAuthErrorMessage = (errorCode: string): string => {
             return "Password should be at least 6 characters.";
         case "auth/api-key-not-valid":
              return "The Firebase API Key is not valid. Please check your configuration.";
+        case "permission-denied":
+        case "auth/permission-denied":
+             return "Email/Password sign-in is not enabled for this project. Please enable it in the Firebase console under Authentication > Sign-in method.";
         default:
             console.error("Unhandled Firebase Auth Error Code:", errorCode);
             return "An unexpected error occurred. Please try again.";
@@ -79,23 +84,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const auth = getAuth(app);
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
+
         if (userDoc.exists()) {
             const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
             
             if (firebaseUser.displayName !== userProfile.name || firebaseUser.photoURL !== userProfile.avatar) {
-                await updateProfile(firebaseUser, { 
+               try {
+                 await updateProfile(firebaseUser, { 
                     displayName: userProfile.name, 
                     photoURL: userProfile.avatar 
                 });
+               } catch (e) {
+                 console.error("Error updating firebase user profile", e)
+               }
             }
             setUser(userProfile);
         } else {
           console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
-          setUser(null);
+          // Create a default profile if it doesn't exist, which can happen on first signup.
+           const basicProfile: UserProfile = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                name: firebaseUser.displayName,
+                role: 'member',
+                avatar: firebaseUser.photoURL || `https://placehold.co/150x150.png`
+            }
+            setUser(basicProfile);
         }
       } else {
         setUser(null);
@@ -112,18 +131,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     setLoading(true);
     try {
+      const auth = getAuth(app);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const userRole = userDoc.data().role;
+        const userRole = userDoc.data().role || 'member';
         callbacks.onSuccess(userRole);
       } else {
+        // This case should not be hit if seeding is correct, but as a fallback.
+        console.warn("User authenticated but no profile found in Firestore. This is unexpected.");
+        const auth = getAuth(app);
         await signOut(auth);
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
+      console.error("Login function error:", error);
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
     } finally {
       setLoading(false);
@@ -139,6 +163,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     setLoading(true);
       try {
+          const auth = getAuth(app);
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
@@ -158,6 +183,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     callbacks: { onSuccess: () => void; onError: (msg: string) => void }
   ) => {
     try {
+        const auth = getAuth(app);
         await sendPasswordResetEmail(auth, email);
         callbacks.onSuccess();
     } catch(error: any) {
@@ -166,7 +192,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
+    const auth = getAuth(app);
     await signOut(auth);
+    setUser(null);
   };
 
   const value = {
