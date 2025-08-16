@@ -20,11 +20,13 @@ import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { app, auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
+export type UserRole = 'member' | 'admin' | 'mentor' | 'seeker' | 'techie';
+
 export interface UserProfile {
     uid: string;
     email: string | null;
     name: string | null;
-    role: 'member' | 'admin' | 'mentor';
+    role: UserRole;
     avatar?: string;
 }
 
@@ -34,7 +36,7 @@ export interface AuthContextType {
   login: (
     email: string,
     pass:string,
-    callbacks: { onSuccess: (role: string) => void; onError: (msg: string) => void }
+    callbacks: { onSuccess: (role: UserRole) => void; onError: (msg: string) => void }
   ) => Promise<void>;
   signup: (
     email: string,
@@ -125,7 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (
     email: string,
     pass: string,
-    callbacks: { onSuccess: (role: string) => void; onError: (msg: string) => void }
+    callbacks: { onSuccess: (role: UserRole) => void; onError: (msg: string) => void }
   ) => {
     try {
       console.log('Starting auth process...', { email });

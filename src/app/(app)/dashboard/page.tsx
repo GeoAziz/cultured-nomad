@@ -2,27 +2,21 @@
 "use client";
 
 import PageHeader from '@/components/shared/page-header';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
 import { motion } from 'framer-motion';
-import { affirmations } from '@/lib/mock-data'; // Affirmations can remain static for now
-import { Calendar, HeartHandshake, BookOpen, MessageSquare, Bot, Info, AlertTriangle, CheckCircle, X } from 'lucide-react';
-import Link from 'next/link';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { affirmations } from '@/lib/mock-data';
+import { Bot, Info, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { collection, getDocs, getFirestore, query, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, orderBy, limit } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAuth, UserProfile } from '@/hooks/use-auth';
+import { Skeleton } from '@/components/ui/skeleton';
+import RoleBasedContent from '@/components/dashboard/RoleBasedContent';
 
-const quickTiles = [
-  { title: 'Events', icon: Calendar, href: '/events' },
-  { title: 'Mentorship', icon: HeartHandshake, href: '/mentorship' },
-  { title: 'Journal', icon: BookOpen, href: '/stories' },
-  { title: 'Connect', icon: MessageSquare, href: '/connect' },
-];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -46,14 +40,6 @@ const itemVariants = {
   },
 };
 
-interface Highlight {
-    id: string;
-    author: string;
-    avatar: string;
-    content: string;
-    dataAiHint?: string;
-}
-
 interface Broadcast {
     id: string;
     title: string;
@@ -74,68 +60,61 @@ const broadcastStyles = {
 }
 
 export default function DashboardPage() {
-  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const { user, loading: authLoading } = useAuth();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBroadcasts, setLoadingBroadcasts] = useState(true);
+  
+  const welcomeMessage = user ? `Welcome back, ${user.name} 👑` : 'Welcome, Nomad 👑';
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchBroadcasts = async () => {
         const db = getFirestore(app);
-        
-        // Fetch highlights
-        const storiesCollection = collection(db, 'stories');
-        const storiesQuery = query(storiesCollection, orderBy('createdAt', 'desc'), limit(3));
-        const storySnapshot = await getDocs(storiesQuery);
-        const highlightsList = storySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                author: data.author,
-                avatar: data.avatar,
-                content: data.excerpt, // Use excerpt as highlight content
-                dataAiHint: 'woman portrait',
-            } as Highlight
-        });
-        setHighlights(highlightsList);
-
-        // Fetch broadcasts
         const broadcastsCollection = collection(db, 'broadcasts');
-        const broadcastsQuery = query(broadcastsCollection, orderBy('createdAt', 'desc'), limit(1)); // show latest
+        const broadcastsQuery = query(broadcastsCollection, orderBy('createdAt', 'desc'), limit(1));
         const broadcastSnapshot = await getDocs(broadcastsQuery);
         const broadcastList = broadcastSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Broadcast));
         setBroadcasts(broadcastList);
-        
-        setLoading(false);
+        setLoadingBroadcasts(false);
     };
 
-    fetchData();
+    fetchBroadcasts();
   }, []);
 
   const dismissBroadcast = (id: string) => {
     setBroadcasts(broadcasts.filter(b => b.id !== id));
-    // In a real app, you might persist this dismissal per-user
   }
 
 
   return (
     <div className="space-y-8">
-      <PageHeader title={`Welcome back, Queen 👑`} description="Here's your daily dose of inspiration and what's new in the hub." />
+      <PageHeader title={welcomeMessage} description="Here's your daily dose of inspiration and what's new in the hub." />
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible">
-        {broadcasts.map(b => (
-            <motion.div key={b.id} variants={itemVariants}>
-                 <Alert className={cn('glass-card mb-8 relative pr-10', broadcastStyles[b.type])}>
-                    {broadcastIcons[b.type]}
-                    <AlertTitle className="font-headline">{b.title}</AlertTitle>
-                    <AlertDescription>{b.message}</AlertDescription>
-                    <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => dismissBroadcast(b.id)}>
-                        <X className="h-4 w-4" />
-                    </Button>
-                </Alert>
-            </motion.div>
-        ))}
+        {loadingBroadcasts ? <Skeleton className="h-24 w-full" /> : (
+            broadcasts.map(b => (
+                <motion.div key={b.id} variants={itemVariants}>
+                    <Alert className={cn('glass-card mb-8 relative pr-10', broadcastStyles[b.type])}>
+                        {broadcastIcons[b.type]}
+                        <AlertTitle className="font-headline">{b.title}</AlertTitle>
+                        <AlertDescription>{b.message}</AlertDescription>
+                        <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6" onClick={() => dismissBroadcast(b.id)}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </Alert>
+                </motion.div>
+            ))
+        )}
+        
+        {/* Main Dashboard Content */}
+        {authLoading ? (
+            <Skeleton className="h-96 w-full" />
+        ) : (
+             <RoleBasedContent userRole={user?.role || 'member'} />
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        {/* Shared Components */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
           <motion.div className="lg:col-span-2 space-y-8" variants={itemVariants}>
             {/* Affirmation Carousel */}
             <Card className="glass-card">
@@ -156,66 +135,12 @@ export default function DashboardPage() {
                 </Carousel>
               </CardContent>
             </Card>
-
-            {/* Highlights Feed */}
-            <Card className="glass-card">
-               <CardHeader>
-                <CardTitle className="font-headline text-2xl">Hub Highlights</CardTitle>
-               </CardHeader>
-               <CardContent className="space-y-4">
-                  {loading ? (
-                    Array.from({length: 2}).map((_, i) => (
-                        <div key={i} className="flex items-start gap-4 p-4">
-                            <Skeleton className="h-12 w-12 rounded-full" />
-                            <div className="flex-1 space-y-2">
-                                <Skeleton className="h-4 w-1/4" />
-                                <Skeleton className="h-4 w-full" />
-                            </div>
-                        </div>
-                    ))
-                  ) : (
-                    highlights.map((item) => (
-                        <motion.div key={item.id} variants={itemVariants} className="p-4 rounded-lg bg-card/50 flex items-start gap-4">
-                        <Avatar>
-                            <AvatarImage src={item.avatar} alt={item.author} data-ai-hint={item.dataAiHint} />
-                            <AvatarFallback>{item.author ? item.author.charAt(0) : 'C'}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                            <p className="font-medium">{item.author}</p>
-                            <p className="text-sm text-foreground/80">{item.content}</p>
-                        </div>
-                        </motion.div>
-                    ))
-                  )}
-               </CardContent>
-            </Card>
           </motion.div>
           
           <motion.div className="space-y-8" variants={itemVariants}>
-              {/* Quick Tiles */}
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="font-headline text-2xl">Quick Links</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <motion.div className="grid grid-cols-2 gap-4" variants={containerVariants}>
-                    {quickTiles.map((tile) => (
-                      <motion.div key={tile.href} variants={itemVariants}>
-                        <Link href={tile.href}>
-                            <div className="p-4 bg-card/50 rounded-lg flex flex-col items-center justify-center aspect-square text-center transition-all hover:bg-primary/20 hover:-translate-y-1">
-                                <tile.icon className="h-8 w-8 text-primary mb-2" />
-                                <p className="font-semibold">{tile.title}</p>
-                            </div>
-                        </Link>
-                      </motion.div>
-                    ))}
-                </motion.div>
-              </CardContent>
-            </Card>
-
              {/* Floating Assistant */}
              <motion.div 
-                className="relative p-6 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 overflow-hidden border border-primary/30"
+                className="relative p-6 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 overflow-hidden border border-primary/30 h-full flex flex-col justify-center"
                 variants={itemVariants}
                 whileHover={{ scale: 1.02 }}
             >
@@ -228,7 +153,6 @@ export default function DashboardPage() {
                 </div>
             </motion.div>
           </motion.div>
-
         </div>
       </motion.div>
     </div>
