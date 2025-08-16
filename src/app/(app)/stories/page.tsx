@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Heart, MessageCircle, Share2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Carousel, CarouselContent, CarouselItem } from '@/components/ui/carousel';
-import { collection, getDocs, query, orderBy, where, getFirestore, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where, getFirestore, Timestamp, limit } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,17 +51,18 @@ interface Story {
     author: string;
     title: string;
     excerpt: string;
-    mood: string;
+    tags: string[];
     avatar: string;
     dataAiHint?: string;
     likes: number;
     commentCount: number;
+    createdAt: Timestamp;
 }
 
 export default function StoriesPage() {
     const [activeMood, setActiveMood] = useState('All');
     const [stories, setStories] = useState<Story[]>([]);
-    const [filteredStories, setFilteredStories] = useState<Story[]>([]);
+    const [featuredStories, setFeaturedStories] = useState<Story[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -69,15 +71,23 @@ export default function StoriesPage() {
             const db = getFirestore(app);
             const storiesCollection = collection(db, 'stories');
             let q;
+
             if (activeMood === 'All') {
                 q = query(storiesCollection, orderBy('createdAt', 'desc'));
             } else {
-                q = query(storiesCollection, where('mood', '==', activeMood), orderBy('createdAt', 'desc'));
+                q = query(storiesCollection, where('tags', 'array-contains', activeMood), orderBy('createdAt', 'desc'));
             }
             const storySnapshot = await getDocs(q);
             const storyList = storySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Story));
             setStories(storyList);
-            setFilteredStories(storyList);
+
+            if(featuredStories.length === 0) {
+                const featuredQuery = query(storiesCollection, orderBy('createdAt', 'desc'), limit(5));
+                const featuredSnapshot = await getDocs(featuredQuery);
+                const featuredList = featuredSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as Story));
+                setFeaturedStories(featuredList);
+            }
+
             setLoading(false);
         };
 
@@ -112,16 +122,20 @@ export default function StoriesPage() {
 
             <Carousel opts={{ loop: true, align: "start" }} className="w-full">
                 <CarouselContent>
-                    {loading ? (
+                    {loading && featuredStories.length === 0 ? (
                         Array.from({length: 3}).map((_, i) => (
                             <CarouselItem key={i} className="md:basis-1/2 lg:basis-1/3">
-                                <Skeleton className="h-28 w-full" />
+                                <div className="p-4 border-l-4 border-primary glass-card h-full space-y-2">
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-4 w-5/6" />
+                                    <Skeleton className="h-4 w-1/3" />
+                                </div>
                            </CarouselItem>
                         ))
                     ) : (
-                        stories.map((story) => (
+                        featuredStories.map((story) => (
                         <CarouselItem key={story.id} className="md:basis-1/2 lg:basis-1/3">
-                            <blockquote className="p-4 border-l-4 border-primary glass-card h-full">
+                            <blockquote className="p-4 border-l-4 border-primary glass-card h-full flex flex-col justify-between">
                                 <p className="italic text-lg">"{story.excerpt}"</p>
                                 <footer className="mt-2 text-sm font-headline">- {story.author}</footer>
                             </blockquote>
@@ -163,7 +177,7 @@ export default function StoriesPage() {
                         </Card>
                     ))
                 ) : (
-                    filteredStories.map(story => (
+                    stories.map(story => (
                         <motion.div key={story.id} variants={itemVariants} whileHover={{y: -5}}>
                             <Card className="glass-card flex flex-col h-full">
                                 <CardHeader>
@@ -174,7 +188,11 @@ export default function StoriesPage() {
                                         </Avatar>
                                         <div>
                                             <p className="font-semibold">{story.author}</p>
-                                            <Badge className={cn("mt-1", getMoodClass(story.mood))}>{story.mood}</Badge>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {story.tags?.map(tag => (
+                                                    <Badge key={tag} className={cn(getMoodClass(tag))}>{tag}</Badge>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </CardHeader>
