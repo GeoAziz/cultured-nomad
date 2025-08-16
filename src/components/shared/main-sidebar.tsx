@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -16,12 +17,15 @@ import {
   Settings,
   Menu,
   X,
-  Bot
+  Bot,
+  LogOut,
 } from 'lucide-react';
 import Logo from '@/components/shared/logo';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,6 +45,16 @@ const bottomNavItems = [
 export default function MainSidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { logout } = useAuth();
+  const { toast } = useToast();
+
+  const handleLogout = () => {
+    logout();
+    toast({
+        title: "You've been logged out.",
+        description: "See you next time, Nomad!",
+    })
+  }
 
   const sidebarContent = (
     <>
@@ -90,6 +104,15 @@ export default function MainSidebar() {
          <span>{item.label}</span>
        </Link>
       ))}
+       <button
+            onClick={handleLogout}
+            className={cn(
+            'flex w-full items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-red-400/70 hover:bg-red-500/10 hover:text-red-400'
+            )}
+        >
+            <LogOut className="h-5 w-5" />
+            <span>Logout</span>
+        </button>
     </div>
     </>
   );
