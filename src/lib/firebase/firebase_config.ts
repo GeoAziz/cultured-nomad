@@ -39,3 +39,4 @@ export const db = getFirestore(app);
 
 // Initialize Analytics (optional)
 // const analytics = getAnalytics(app);
+
