@@ -83,10 +83,10 @@ export default function StoriesPage() {
             setStories(storyList);
 
             if(featuredStories.length === 0) {
-                const featuredQuery = query(storiesCollection, orderBy('createdAt', 'desc'), limit(5));
+                const featuredQuery = query(storiesCollection, orderBy('likes', 'desc'), limit(5));
                 const featuredSnapshot = await getDocs(featuredQuery);
                 const featuredList = featuredSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data()} as Story));
-                setFeaturedStories(featuredList);
+                setFeaturedStories(featuredList.length > 0 ? featuredList : storyList.slice(0,5));
             }
 
             setLoading(false);
