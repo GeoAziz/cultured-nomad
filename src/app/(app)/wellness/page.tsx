@@ -12,6 +12,7 @@ import { Play, Pause, SkipBack, SkipForward, Loader2 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 const moods = [
     { emoji: '🎉', label: 'Celebrating' },
@@ -35,6 +36,7 @@ const itemVariants = {
 };
 
 export default function WellnessPage() {
+    const { user } = useAuth();
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [winOfTheDay, setWinOfTheDay] = useState('');
     const [journalEntry, setJournalEntry] = useState('');
@@ -54,11 +56,15 @@ export default function WellnessPage() {
                 setJournalPrompt("What's one small step you took today that you're proud of, and why did it matter?"); // Fallback prompt
             }
         };
-        fetchPrompt();
-    }, []);
+        if (user) fetchPrompt();
+    }, [user]);
 
 
     const handleLogMood = async (mood: string, notes?: string) => {
+        if (!user) {
+            toast({ title: "Please log in to use this feature.", variant: "destructive"});
+            return;
+        }
         const loadingKey = notes ? 'win' : mood;
         setLoading(prev => ({ ...prev, [loadingKey]: true }));
         try {
@@ -71,6 +77,7 @@ export default function WellnessPage() {
                 description: result.data.quote,
             });
             if (notes) setWinOfTheDay('');
+            if (!notes) setSelectedMood(mood);
 
         } catch (error: any) {
             console.error("Error logging mood:", error);
@@ -85,7 +92,6 @@ export default function WellnessPage() {
     };
 
     const handleSelectMood = (mood: string) => {
-        setSelectedMood(mood);
         handleLogMood(mood);
     }
 
