@@ -30,6 +30,7 @@ export interface UserProfile {
     avatar?: string;
     banner?: string;
     bio?: string;
+    interests?: string[];
     dataAiHint?: string;
     dataAiHintBanner?: string;
 }
@@ -46,6 +47,8 @@ export interface AuthContextType {
     email: string,
     pass: string,
     name: string,
+    bio: string,
+    interests: string[],
     callbacks: { onSuccess: () => void; onError: (msg:string) => void }
   ) => Promise<void>;
   logout: () => void;
@@ -162,6 +165,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     email: string,
     pass: string,
     name: string,
+    bio: string,
+    interests: string[],
     callbacks: { onSuccess: () => void; onError: (msg: string) => void }
   ) => {
     setLoading(true);
@@ -172,6 +177,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // This displayName will be picked up by the `assignUserRole` Cloud Function
           await updateProfile(newUser, { displayName: name });
           
+          // We manually create the profile here as well so the user doesn't have to wait for the function to trigger
+          const userRef = doc(db, 'users', newUser.uid);
+          await setDoc(userRef, {
+             uid: newUser.uid,
+             name,
+             email,
+             avatar: `https://placehold.co/150x150.png`,
+             role: "member",
+             bio: bio || "New member of the Cultured Nomads sisterhood!",
+             interests: interests || [],
+             joinedAt: new Date(),
+             isMentor: false,
+          })
+
           callbacks.onSuccess();
 
       } catch (error: any) {

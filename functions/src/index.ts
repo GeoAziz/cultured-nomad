@@ -10,18 +10,20 @@ const db = admin.firestore();
 
 /**
  * Triggered on new user creation to set up their profile in Firestore.
- * This will NOT run for users created via the Admin SDK (e.g. seeding script).
+ * This function creates the user profile but relies on the client to pass extra info.
+ * The client-side signup function now creates this document manually for immediate user access,
+ * making this function more of a fallback/double-check.
  */
 export const assignUserRole = functions.auth.user().onCreate(async (user) => {
-  // Check if the user was created by an admin by checking for provider data.
-  // Client-side signups (email/password) will have a 'password' provider.
-  // Admin SDK created users will have an empty providerData array.
-  if (user.providerData.some(p => p.providerId === 'password')) {
+  const userRef = db.collection("users").doc(user.uid);
+  const userDoc = await userRef.get();
+
+  // Only create a profile if one doesn't already exist.
+  // This prevents overwriting the profile created on the client during signup.
+  if (!userDoc.exists) {
+      console.log(`User profile for ${user.email} does not exist. Creating fallback profile.`);
       const { uid, email, displayName, photoURL } = user;
-      const userRef = db.collection("users").doc(uid);
-
-      console.log(`New user signup from client: ${email}. Creating profile.`);
-
+      
       return userRef.set({
         uid,
         name: displayName || email,
@@ -34,7 +36,8 @@ export const assignUserRole = functions.auth.user().onCreate(async (user) => {
         isMentor: false,
       });
   }
-  console.log(`Skipping profile creation for admin-created user: ${user.email}`);
+  
+  console.log(`User profile for ${user.email} already exists. Skipping creation.`);
   return null;
 });
 

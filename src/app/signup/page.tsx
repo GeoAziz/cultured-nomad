@@ -4,19 +4,22 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { User, Mail, KeyRound, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { User, Mail, KeyRound, Loader2, ShieldCheck, ShieldAlert, BookText, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import AuthLayout from '@/components/auth/auth-layout';
 import AuthInput from '@/components/auth/auth-input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [bio, setBio] = useState('');
+  const [interests, setInterests] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -31,7 +34,7 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
     
-    await signup(email, password, name, {
+    await signup(email, password, name, bio, interests.split(',').map(i => i.trim()), {
         onSuccess: () => {
           router.push('/dashboard');
         },
@@ -77,6 +80,30 @@ export default function SignupPage() {
                 icon={Mail}
                 disabled={loading}
                 required
+                />
+                <motion.div
+                    className="relative"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                >
+                    <BookText className="absolute left-3 top-3 h-5 w-5 text-slate-500 peer-focus:text-primary transition-colors" />
+                    <Textarea 
+                        id="bio"
+                        placeholder="Tell us a bit about yourself..."
+                        className="pl-10 bg-slate-900/50 border-slate-700 transition-shadow duration-300 ease-in-out focus:ring-primary focus:border-primary focus:shadow-[0_0_15px_hsl(var(--primary)/0.5)] peer"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        disabled={loading}
+                    />
+                </motion.div>
+                <AuthInput
+                id="interests"
+                type="text"
+                placeholder="Interests (e.g. AI, Fintech, Art)"
+                value={interests}
+                onChange={(e) => setInterests(e.target.value)}
+                icon={Heart}
+                disabled={loading}
                 />
                 <AuthInput
                 id="password"
