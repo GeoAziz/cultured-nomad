@@ -1,3 +1,4 @@
+
 "use client";
 
 import { motion } from 'framer-motion';
@@ -30,40 +31,44 @@ const itemVariants = {
   visible: { y: 0, opacity: 1 },
 };
 
+const chartData = [
+    { name: 'Jan', total: 1200 },
+    { name: 'Feb', total: 2100 },
+    { name: 'Mar', total: 1800 },
+    { name: 'Apr', total: 2780 },
+    { name: 'May', total: 1890 },
+    { name: 'Jun', total: 2390 },
+    { name: 'Jul', total: 3490 },
+    { name: 'Aug', total: 2000 },
+    { name: 'Sep', total: 2780 },
+    { name: 'Oct', total: 1890 },
+    { name: 'Nov', total: 2390 },
+    { name: 'Dec', total: 3490 },
+];
+
+
 export default function AdminDashboardPage() {
-    const [stats, setStats] = useState({ users: 0, revenue: 0, pending: 0, services: 0 });
+    const [stats, setStats] = useState({ users: 0, revenue: 56345, pending: 12, services: 45 });
     const [loading, setLoading] = useState(true);
-    const [chartData, setChartData] = useState([]);
 
     useEffect(() => {
         const fetchData = async () => {
-            const db = getFirestore(app);
-            const usersSnapshot = await getDocs(collection(db, "users"));
-            // In a real app, revenue and other stats would come from dedicated collections/analytics
-            setStats({
-                users: usersSnapshot.size,
-                revenue: 56345, // Placeholder
-                pending: 12, // Placeholder
-                services: 45, // Placeholder
-            });
-
-             const data = [
-                { name: 'Jan', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Feb', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Mar', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Apr', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'May', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Jun', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Jul', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Aug', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Sep', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Oct', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Nov', total: Math.floor(Math.random() * 5000) + 1000 },
-                { name: 'Dec', total: Math.floor(Math.random() * 5000) + 1000 },
-            ];
-            setChartData(data);
-
-            setLoading(false);
+            setLoading(true);
+            try {
+                const db = getFirestore(app);
+                const usersSnapshot = await getDocs(collection(db, "users"));
+                // In a real app, other stats would come from dedicated collections/analytics
+                setStats({
+                    users: usersSnapshot.size,
+                    revenue: 56345, // Placeholder
+                    pending: 12, // Placeholder
+                    services: 45, // Placeholder
+                });
+            } catch (error) {
+                console.error("Error fetching admin dashboard data:", error);
+            } finally {
+                setLoading(false);
+            }
         }
         fetchData();
     }, [])
