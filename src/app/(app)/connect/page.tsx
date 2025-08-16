@@ -11,11 +11,13 @@ import { Send, Smile, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc, Unsubscribe } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc, Unsubscribe, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { formatDistanceToNowStrict } from 'date-fns';
+
 
 interface ChatUser {
     id: string;
@@ -85,6 +87,39 @@ export default function ConnectPage() {
     return () => unsubscribe();
   }, [user]);
 
+   // Fetch last message for each chat
+   useEffect(() => {
+    if (!user || chats.length === 0) return;
+    const db = getFirestore(app);
+
+    const unsubscribes = chats.map(chat => {
+        const messagesCollection = collection(db, 'messages');
+        const q = query(
+            messagesCollection,
+            where('participants', '==', [user.uid, chat.id].sort()),
+            orderBy('timestamp', 'desc'),
+            limit(1)
+        );
+
+        return onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                const lastMsgDoc = snapshot.docs[0];
+                const lastMsgData = lastMsgDoc.data();
+                setChats(prevChats => prevChats.map(c => 
+                    c.id === chat.id ? {
+                        ...c,
+                        lastMessage: lastMsgData.content,
+                        lastMessageTime: lastMsgData.timestamp ? formatDistanceToNowStrict(lastMsgData.timestamp.toDate()) : 'now',
+                    } : c
+                ));
+            }
+        });
+    });
+
+    return () => unsubscribes.forEach(unsub => unsub());
+
+}, [chats.length, user]); // Re-run when number of chats changes
+
   // Fetch messages for the selected chat
   useEffect(() => {
     if (!selectedChat || !user) return;
@@ -93,23 +128,12 @@ export default function ConnectPage() {
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
     
-    // More efficient query: We listen to two separate queries and combine the results.
-    const q1 = query(messagesCollection, 
-        where('from', '==', user.uid),
-        where('to', '==', selectedChat.id),
+    const q = query(messagesCollection, 
+        where('participants', '==', [user.uid, selectedChat.id].sort()),
         orderBy('timestamp', 'asc')
     );
-
-    const q2 = query(messagesCollection, 
-        where('from', '==', selectedChat.id),
-        where('to', '==', user.uid),
-        orderBy('timestamp', 'asc')
-    );
-
-    let unsubscribes: Unsubscribe[] = [];
-    let allMessages: Message[] = [];
-
-    const processSnapshot = (snapshot: any) => {
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const newMessages = snapshot.docs.map((doc: any) => {
             const data = doc.data();
             return {
@@ -121,19 +145,11 @@ export default function ConnectPage() {
             } as Message;
         });
 
-        // Combine and sort messages
-        allMessages = [...allMessages.filter(m => !newMessages.some(nm => nm.id === m.id)), ...newMessages];
-        allMessages.sort((a, b) => new Date('1970/01/01 ' + a.timestamp).getTime() - new Date('1970/01/01 ' + b.timestamp).getTime());
-        
-        setMessages(allMessages);
+        setMessages(newMessages);
         setLoadingMessages(false);
-    }
+    });
     
-    unsubscribes.push(onSnapshot(q1, processSnapshot));
-    unsubscribes.push(onSnapshot(q2, processSnapshot));
-    
-
-    return () => unsubscribes.forEach(unsub => unsub());
+    return () => unsubscribe();
   }, [selectedChat, user]);
 
   const handleSelectChat = (chat: ChatUser) => {
@@ -205,7 +221,7 @@ export default function ConnectPage() {
                                     <p className="font-semibold">{chat.name}</p>
                                     <p className="text-sm text-foreground/70 truncate">{chat.lastMessage}</p>
                                 </div>
-                                <div className="text-xs text-foreground/50 text-right">
+                                <div className="text-xs text-foreground/50 text-right shrink-0">
                                     <p>{chat.lastMessageTime}</p>
                                     {chat.unread && chat.unread > 0 && <span className="mt-1 inline-block bg-primary text-primary-foreground rounded-full px-2 py-0.5">{chat.unread}</span>}
                                 </div>
@@ -292,3 +308,5 @@ export default function ConnectPage() {
     </div>
   );
 }
+
+    

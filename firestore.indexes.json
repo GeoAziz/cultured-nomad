@@ -1,3 +1,4 @@
+
 {
   "indexes": [
     {
@@ -16,17 +17,9 @@
     },
     {
       "collectionGroup": "messages",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "from", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "messages",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "to", "order": "ASCENDING" },
+        { "fieldPath": "participants", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
@@ -41,3 +34,5 @@
   ],
   "fieldOverrides": []
 }
+
+    
