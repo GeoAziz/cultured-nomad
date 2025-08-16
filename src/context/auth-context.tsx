@@ -18,7 +18,7 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-import { app } from '@/lib/firebase/firebase_config';
+import { app, auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -54,31 +54,41 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
-const auth = getAuth(app);
-const db = getFirestore(app);
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Setting up auth state listener...');
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user ? 'User authenticated' : 'No user');
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-            setUser({ uid: user.uid, ...userDoc.data() } as UserProfile);
-        } else {
-            // This case might happen if user doc creation fails during signup
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log('User data loaded:', { role: userData.role });
+            setUser({ uid: user.uid, ...userData } as UserProfile);
+          } else {
+            console.warn('No user document found for authenticated user');
             setUser(null);
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+          setUser(null);
         }
       } else {
+        console.log('No authenticated user');
         setUser(null);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('Cleaning up auth state listener');
+      unsubscribe();
+    };
   }, []);
 
   const login = async (
@@ -87,19 +97,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     callbacks: { onSuccess: (role: string) => void; onError: (msg: string) => void }
   ) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      console.log('Starting auth process...', { email });
+      
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass)
+        .catch(error => {
+          console.error('Firebase auth error:', {
+            code: error.code,
+            message: error.message,
+            fullError: error
+          });
+          throw error;
+        });
+
+      console.log('Auth successful, fetching user doc...');
+      
       const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDoc = await getDoc(userDocRef);
+      const userDoc = await getDoc(userDocRef)
+        .catch(error => {
+          console.error('Firestore error:', {
+            code: error.code,
+            message: error.message,
+            fullError: error
+          });
+          throw error;
+        });
 
       if (userDoc.exists()) {
         const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
-        setUser(userProfile); // Set user profile immediately
+        console.log('User profile found:', { role: userProfile.role });
+        setUser(userProfile);
         callbacks.onSuccess(userProfile.role);
       } else {
+        console.error('No user document found for uid:', userCredential.user.uid);
         await signOut(auth);
         callbacks.onError('User profile not found. Please contact support.');
       }
     } catch (error: any) {
+      console.error('Login error caught:', {
+        code: error.code,
+        message: error.message,
+        fullError: error
+      });
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
     }
   };

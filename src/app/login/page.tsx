@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Attempting login...');
+    console.log('Attempting login with:', { email });
     setLoading(true);
     setError(null);
     try {
@@ -35,16 +35,26 @@ export default function LoginPage() {
             router.push('/dashboard');
           }
         },
-        onError: (err) => {
-          console.error('Login error from callback:', err); // Log the full error object
-          setError(err);
+        onError: (err: any) => {
+          console.error('Login error details:', { 
+            error: err,
+            message: typeof err === 'object' && err !== null ? err.message : err,
+            code: typeof err === 'object' && err !== null ? err.code : undefined,
+            stack: typeof err === 'object' && err !== null ? err.stack : undefined
+          });
+          setError(typeof err === 'string' ? err : err?.message || 'Login failed');
         },
       });
     } catch (err: any) {
-      console.error('Caught an exception during login:', err);
+      console.error('Login exception details:', {
+        error: err,
+        message: err?.message,
+        code: err?.code,
+        stack: err?.stack
+      });
       setError(err.message || 'An unexpected error occurred.');
     } finally {
-      console.log('Login attempt finished.');
+      console.log('Login attempt finished');
       setLoading(false);
     }
   };

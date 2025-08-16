@@ -1,6 +1,8 @@
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
+import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -14,9 +16,26 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || undefined
 };
 
 // Initialize Firebase
+console.log('Initializing Firebase with config:', {
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket
+});
+
 export const app = initializeApp(firebaseConfig);
-// const analytics = getAnalytics(app); // Analytics can be initialized where needed
+
+// Initialize Firebase Auth with persistence
+export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence)
+  .then(() => console.log('Firebase Auth persistence set to local'))
+  .catch(error => console.error('Error setting auth persistence:', error));
+
+// Initialize Firestore
+export const db = getFirestore(app);
+
+// Initialize Analytics (optional)
+// const analytics = getAnalytics(app);
