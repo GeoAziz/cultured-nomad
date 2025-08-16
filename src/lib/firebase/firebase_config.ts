@@ -3,11 +3,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Your web app's Firebase configuration is loaded from environment variables
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -22,12 +19,16 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firebase Auth with persistence
+// Initialize Firebase Auth
 export const auth = getAuth(app);
 
+// Set persistence to local storage
 // It's safe to call this every time, it doesn't re-apply if already set.
-setPersistence(auth, browserLocalPersistence)
-  .catch(error => console.error('Error setting auth persistence:', error));
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence)
+    .catch(error => console.error('Error setting auth persistence:', error));
+}
+
 
 // Initialize Firestore
 export const db = getFirestore(app);
