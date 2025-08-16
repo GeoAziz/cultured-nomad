@@ -22,11 +22,13 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Attempting login...');
     setLoading(true);
     setError(null);
     try {
       await login(email, password, {
         onSuccess: (role) => {
+          console.log('Login successful. User role:', role);
           if (role === 'admin') {
             router.push('/admin/dashboard');
           } else {
@@ -34,12 +36,15 @@ export default function LoginPage() {
           }
         },
         onError: (err) => {
+          console.error('Login error from callback:', err);
           setError(err);
         },
       });
     } catch (err: any) {
+      console.error('Caught an exception during login:', err);
       setError(err.message || 'An unexpected error occurred.');
     } finally {
+      console.log('Login attempt finished.');
       setLoading(false);
     }
   };
