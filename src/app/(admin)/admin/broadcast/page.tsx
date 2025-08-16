@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function BroadcastPage() {
     const [title, setTitle] = useState('');
@@ -21,6 +22,7 @@ export default function BroadcastPage() {
     const [type, setType] = useState('info');
     const [loading, setLoading] = useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
 
     const handleSendBroadcast = async () => {
         if(!title || !message || !type) {
@@ -29,6 +31,10 @@ export default function BroadcastPage() {
                 description: 'Please fill out all fields before sending a broadcast.',
                 variant: 'destructive'
             });
+            return;
+        }
+         if (user?.role !== 'admin') {
+            toast({ title: "Permission Denied", description: "You are not authorized to perform this action.", variant: "destructive" });
             return;
         }
 
@@ -92,9 +98,9 @@ export default function BroadcastPage() {
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="info"><Info className="mr-2" />Info</SelectItem>
-                  <SelectItem value="warning"><AlertTriangle className="mr-2" />Warning</SelectItem>
-                  <SelectItem value="success"><CheckCircle className="mr-2" />Success</SelectItem>
+                  <SelectItem value="info"><div className="flex items-center gap-2"><Info className="h-4 w-4" />Info</div></SelectItem>
+                  <SelectItem value="warning"><div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Warning</div></SelectItem>
+                  <SelectItem value="success"><div className="flex items-center gap-2"><CheckCircle className="h-4 w-4" />Success</div></SelectItem>
                 </SelectContent>
               </Select>
             </div>

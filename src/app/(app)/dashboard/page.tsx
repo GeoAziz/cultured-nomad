@@ -13,7 +13,7 @@ import { app } from '@/lib/firebase/firebase_config';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useAuth, UserProfile } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import RoleBasedContent from '@/components/dashboard/RoleBasedContent';
 
@@ -68,13 +68,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchBroadcasts = async () => {
-        const db = getFirestore(app);
-        const broadcastsCollection = collection(db, 'broadcasts');
-        const broadcastsQuery = query(broadcastsCollection, orderBy('createdAt', 'desc'), limit(1));
-        const broadcastSnapshot = await getDocs(broadcastsQuery);
-        const broadcastList = broadcastSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Broadcast));
-        setBroadcasts(broadcastList);
-        setLoadingBroadcasts(false);
+        setLoadingBroadcasts(true);
+        try {
+            const db = getFirestore(app);
+            const broadcastsCollection = collection(db, 'broadcasts');
+            const broadcastsQuery = query(broadcastsCollection, orderBy('createdAt', 'desc'), limit(1));
+            const broadcastSnapshot = await getDocs(broadcastsQuery);
+            const broadcastList = broadcastSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Broadcast));
+            setBroadcasts(broadcastList);
+        } catch (error) {
+            console.error("Error fetching broadcasts:", error);
+        } finally {
+            setLoadingBroadcasts(false);
+        }
     };
 
     fetchBroadcasts();
