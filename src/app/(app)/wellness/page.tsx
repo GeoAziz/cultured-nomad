@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -7,7 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Loader2 } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '@/lib/firebase/firebase_config';
+import { useToast } from '@/hooks/use-toast';
 
 const moods = [
     { emoji: '🎉', label: 'Celebrating' },
@@ -34,6 +38,49 @@ const itemVariants = {
 
 export default function WellnessPage() {
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
+    const [winOfTheDay, setWinOfTheDay] = useState('');
+    const [journalEntry, setJournalEntry] = useState('');
+    const [loading, setLoading] = useState<Record<string, boolean>>({});
+    const { toast } = useToast();
+
+    const handleLogMood = async (mood: string, notes?: string) => {
+        const loadingKey = notes ? 'win' : mood;
+        setLoading(prev => ({ ...prev, [loadingKey]: true }));
+        try {
+            const functions = getFunctions(app);
+            const logMoodFn = httpsCallable(functions, 'logMood');
+            const result: any = await logMoodFn({ mood, notes });
+
+            toast({
+                title: `Feeling ${mood.toLowerCase()} logged!`,
+                description: result.data.quote,
+            });
+            if (notes) setWinOfTheDay('');
+
+        } catch (error: any) {
+            console.error("Error logging mood:", error);
+            toast({
+                title: 'Error',
+                description: error.message || "Couldn't log your mood. Please try again.",
+                variant: 'destructive',
+            })
+        } finally {
+             setLoading(prev => ({ ...prev, [loadingKey]: false }));
+        }
+    };
+
+    const handleSelectMood = (mood: string) => {
+        setSelectedMood(mood);
+        handleLogMood(mood);
+    }
+
+    const handleLogWin = () => {
+        if (!winOfTheDay.trim()) {
+            toast({ title: "Please enter your win.", variant: "destructive" });
+            return;
+        }
+        handleLogMood('Win', winOfTheDay);
+    };
 
     return (
         <div className="space-y-8">
@@ -55,10 +102,11 @@ export default function WellnessPage() {
                                 {moods.map(mood => (
                                     <motion.button
                                         key={mood.label}
-                                        onClick={() => setSelectedMood(mood.label)}
+                                        onClick={() => handleSelectMood(mood.label)}
                                         className="flex flex-col items-center gap-2 text-foreground/80 relative"
                                         whileHover={{ scale: 1.1 }}
                                         whileTap={{ scale: 0.9 }}
+                                        disabled={loading[mood.label]}
                                     >
                                         <span className="text-4xl p-4 bg-card/50 rounded-full">{mood.emoji}</span>
                                         <span className="text-sm">{mood.label}</span>
@@ -71,6 +119,7 @@ export default function WellnessPage() {
                                                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                                             />
                                         )}
+                                        {loading[mood.label] && <Loader2 className="absolute top-5 animate-spin"/>}
                                     </motion.button>
                                 ))}
                             </div>
@@ -82,8 +131,15 @@ export default function WellnessPage() {
                             <CardTitle className="font-headline text-2xl">Log your Win of the Day</CardTitle>
                         </CardHeader>
                         <CardContent className="flex gap-2">
-                            <Input placeholder="e.g., Nailed my presentation!" />
-                            <Button className="glow-button">Log Win</Button>
+                            <Input 
+                                placeholder="e.g., Nailed my presentation!"
+                                value={winOfTheDay}
+                                onChange={e => setWinOfTheDay(e.target.value)}
+                                disabled={loading['win']}
+                             />
+                            <Button className="glow-button" onClick={handleLogWin} disabled={loading['win']}>
+                                {loading['win'] ? <Loader2 className="animate-spin" /> : 'Log Win'}
+                            </Button>
                         </CardContent>
                     </Card>
                 </motion.div>
@@ -95,7 +151,12 @@ export default function WellnessPage() {
                         </CardHeader>
                         <CardContent className="flex-1 flex flex-col">
                            <p className="italic text-foreground/80 mb-4">{journalPrompt}</p>
-                           <Textarea placeholder="Your thoughts..." className="flex-1 bg-card/50" />
+                           <Textarea 
+                                placeholder="Your thoughts..." 
+                                className="flex-1 bg-card/50"
+                                value={journalEntry}
+                                onChange={(e) => setJournalEntry(e.target.value)}
+                            />
                            <Button className="glow-button-accent mt-4 self-end">Save Entry</Button>
                         </CardContent>
                     </Card>
