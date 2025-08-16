@@ -129,8 +129,8 @@ export default function MentorshipPage() {
     setIsSubmitting(true);
     try {
         const functions = getFunctions(app);
-        const requestMentorship = httpsCallable(functions, 'requestMentorship');
-        await requestMentorship({ 
+        const requestMentorshipFn = httpsCallable(functions, 'requestMentorship');
+        await requestMentorshipFn({ 
             mentorId, 
             message: requestMessage,
             userBio: user?.bio, // Pass additional context
