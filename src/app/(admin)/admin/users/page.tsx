@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { collection, getDocs, getFirestore } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, where } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserRole } from '@/hooks/use-auth';
@@ -67,21 +67,28 @@ export default function UserManagementPage() {
     const fetchUsers = async () => {
         setLoading(true);
         const db = getFirestore(app);
-        const usersSnapshot = await getDocs(collection(db, "users"));
+        
+        let usersQuery;
+        if (roleFilter !== 'all') {
+            usersQuery = query(collection(db, "users"), where("role", "==", roleFilter));
+        } else {
+            usersQuery = query(collection(db, "users"));
+        }
+        
+        const usersSnapshot = await getDocs(usersQuery);
         const usersList = usersSnapshot.docs.map(doc => ({id: doc.id, ...doc.data(), status: 'Active'} as User)); // Status is mock
+        
         setUsers(usersList);
-        setFilteredUsers(usersList);
         setLoading(false);
     }
     fetchUsers();
-  }, [])
+  }, [roleFilter])
   
   useEffect(() => {
     let results = users
-      .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      .filter(u => roleFilter === 'all' || u.role === roleFilter);
+      .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
     setFilteredUsers(results);
-  }, [searchTerm, roleFilter, users]);
+  }, [searchTerm, users]);
 
 
   return (
@@ -208,5 +215,3 @@ export default function UserManagementPage() {
     </motion.div>
   );
 }
-
-    
