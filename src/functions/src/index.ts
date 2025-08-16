@@ -155,7 +155,7 @@ export const requestMentorship = functions.https.onCall(async (data, context) =>
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
     }
-    const { mentorId, message } = data;
+    const { mentorId, message, userBio } = data;
     const userId = context.auth.uid;
 
     const mentorRef = db.collection("users").doc(mentorId);
@@ -170,6 +170,7 @@ export const requestMentorship = functions.https.onCall(async (data, context) =>
         mentorId,
         status: "pending", // pending, accepted, declined
         message,
+        userBio, // Added for more context
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
