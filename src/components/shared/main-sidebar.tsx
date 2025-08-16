@@ -27,15 +27,22 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
-const navItems = [
+const baseNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/members', label: 'Directory', icon: Users },
   { href: '/connect', label: 'Connect', icon: MessageSquare },
   { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake },
   { href: '/stories', label: 'Stories', icon: BookOpen },
   { href: '/wellness', label: 'Wellness', icon: Sparkles },
 ];
+
+const roleSpecificNavItems = {
+    mentor: [],
+    seeker: [{ href: '/mentorship', label: 'Find a Mentor', icon: HeartHandshake }],
+    techie: [],
+    member: [{ href: '/mentorship', label: 'Mentorship', icon: HeartHandshake }],
+    admin: [],
+}
 
 const bottomNavItems = [
   { href: '/profile', label: 'My Profile', icon: CircleUserRound },
@@ -45,7 +52,7 @@ const bottomNavItems = [
 export default function MainSidebar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { toast } = useToast();
 
   const handleLogout = () => {
@@ -55,6 +62,12 @@ export default function MainSidebar() {
         description: "See you next time, Nomad!",
     })
   }
+
+  const navItems = [
+      ...baseNavItems,
+      ...(roleSpecificNavItems[user?.role || 'member'] || [])
+  ].sort((a,b) => (baseNavItems.indexOf(a) > -1 ? baseNavItems.indexOf(a) : 99) - (baseNavItems.indexOf(b) > -1 ? baseNavItems.indexOf(b) : 99));
+
 
   const sidebarContent = (
     <>
