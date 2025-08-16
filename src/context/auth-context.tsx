@@ -97,7 +97,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (userDoc.exists()) {
             const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
             
-            if (firebaseUser.displayName !== userProfile.name || firebaseUser.photoURL !== userProfile.avatar) {
+            // Sync Firebase Auth profile with Firestore profile if they differ
+            const needsUpdate = (firebaseUser.displayName !== userProfile.name && userProfile.name) || 
+                                (firebaseUser.photoURL !== userProfile.avatar && userProfile.avatar);
+
+            if (needsUpdate) {
                try {
                  await updateProfile(firebaseUser, { 
                     displayName: userProfile.name, 
@@ -110,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(userProfile);
         } else {
           console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
-          // Create a default profile if it doesn't exist, which can happen on first signup.
+          // This case is handled by the `assignUserRole` cloud function, but as a fallback:
            const basicProfile: UserProfile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -180,6 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
+          // This displayName will be picked up by the `assignUserRole` Cloud Function
           await updateProfile(newUser, { displayName: name });
           
           callbacks.onSuccess();

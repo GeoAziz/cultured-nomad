@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,21 +11,61 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '@/lib/firebase/firebase_config';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function SettingsPage() {
     const [isDarkMode, setIsDarkMode] = useState(true);
+    const { user, loading: authLoading } = useAuth();
+    const { toast } = useToast();
+    
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [bio, setBio] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // On component mount, check the class on <html>
         const root = window.document.documentElement;
         setIsDarkMode(root.classList.contains('dark'));
-    }, []);
+        
+        if(user) {
+            setName(user.name || '');
+            setEmail(user.email || '');
+            setBio(user.bio || '');
+        }
+
+    }, [user]);
 
     const toggleTheme = () => {
         const root = window.document.documentElement;
         root.classList.toggle('dark');
         setIsDarkMode(!isDarkMode);
     };
+
+    const handleSaveChanges = async () => {
+        setLoading(true);
+        try {
+            const functions = getFunctions(app);
+            const updateUserProfile = httpsCallable(functions, 'updateUserProfile');
+            await updateUserProfile({ name, bio });
+            toast({
+                title: 'Profile Updated',
+                description: 'Your changes have been saved successfully.',
+            });
+        } catch (error: any) {
+             toast({
+                title: 'Update Failed',
+                description: error.message || 'An unexpected error occurred.',
+                variant: 'destructive',
+            });
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
         <div className="space-y-8">
@@ -38,14 +79,34 @@ export default function SettingsPage() {
                 >
                     <Card className="glass-card">
                         <CardHeader>
-                            <CardTitle className="font-headline">Appearance</CardTitle>
-                            <CardDescription>Adjust the look and feel of the platform.</CardDescription>
+                            <CardTitle className="font-headline">Profile Information</CardTitle>
+                            <CardDescription>Keep your information up to date.</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="dark-mode">Zizo Dark Mode™️</Label>
-                                <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={toggleTheme} />
+                        <CardContent className="space-y-4">
+                             <div className="flex flex-col items-center">
+                                <Avatar className="w-24 h-24 mb-4 border-2 border-primary/50">
+                                    <AvatarImage src={user?.avatar} data-ai-hint={user?.dataAiHint} />
+                                    <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <Button variant="outline" size="sm" disabled>Change Avatar (soon)</Button>
                             </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Full Name</Label>
+                                    <Input id="name" value={name} onChange={e => setName(e.target.value)} disabled={loading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <Input id="email" type="email" value={email} disabled />
+                                </div>
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="bio">Bio</Label>
+                                <Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} disabled={loading} className="min-h-[100px]" />
+                            </div>
+                            <Button onClick={handleSaveChanges} className="w-full glow-button" disabled={loading || authLoading}>
+                                {loading ? <Loader2 className="animate-spin" /> : 'Save Changes'}
+                            </Button>
                         </CardContent>
                     </Card>
 
@@ -63,8 +124,27 @@ export default function SettingsPage() {
                                 <Label htmlFor="event-notifs">Event Reminders</Label>
                                 <Switch id="event-notifs" defaultChecked />
                             </div>
-                             <div className="flex items-center justify-between">
-                                <Label htmlFor="sound-notifs">Notification Sounds</Label>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                 <motion.div 
+                    className="lg:col-span-1 space-y-8"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                >
+                    <Card className="glass-card">
+                        <CardHeader>
+                            <CardTitle className="font-headline">Appearance</CardTitle>
+                            <CardDescription>Adjust the look and feel of the platform.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="dark-mode">Zizo Dark Mode™️</Label>
+                                <Switch id="dark-mode" checked={isDarkMode} onCheckedChange={toggleTheme} />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="sound-notifs">UI Sounds</Label>
                                 <Select defaultValue="sci-fi-beep-1">
                                     <SelectTrigger className="w-[180px]">
                                         <SelectValue placeholder="Select sound" />
@@ -79,40 +159,14 @@ export default function SettingsPage() {
                             </div>
                         </CardContent>
                     </Card>
-                </motion.div>
 
-                 <motion.div 
-                    className="lg:col-span-1 space-y-8"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                >
-                    <Card className="glass-card">
+                     <Card className="glass-card border-destructive/50">
                         <CardHeader>
-                            <CardTitle className="font-headline">Edit Profile</CardTitle>
-                            <CardDescription>Keep your information up to date.</CardDescription>
+                            <CardTitle className="font-headline text-destructive">Danger Zone</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex flex-col items-center">
-                                <motion.div
-                                    animate={{ rotateY: [0, 180, 360] }}
-                                    transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-                                >
-                                    <Avatar className="w-24 h-24 mb-4">
-                                        <AvatarImage src="https://placehold.co/100x100.png" data-ai-hint="woman portrait" />
-                                        <AvatarFallback>A</AvatarFallback>
-                                    </Avatar>
-                                </motion.div>
-                                <Button variant="outline" size="sm">Change Avatar</Button>
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Full Name</Label>
-                                <Input id="name" defaultValue="Aisha Khan" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <Input id="email" type="email" defaultValue="aisha@nexusai.com" />
-                            </div>
-                            <Button className="w-full glow-button">Save Changes</Button>
+                        <CardContent>
+                           <Button variant="destructive" className="w-full">Delete Account</Button>
+                           <p className="text-xs text-muted-foreground mt-2">This action is irreversible. All your data will be permanently deleted.</p>
                         </CardContent>
                     </Card>
                 </motion.div>

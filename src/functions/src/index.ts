@@ -56,6 +56,38 @@ export const onUserDelete = functions.auth.user().onDelete(async (user) => {
 // --- CALLABLE FUNCTIONS ---
 
 /**
+ * Allows a user to update their own profile information.
+ */
+export const updateUserProfile = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in to update your profile.");
+    }
+
+    const { name, bio } = data;
+    const userId = context.auth.uid;
+    const userRef = db.collection("users").doc(userId);
+
+    const updateData: { name?: string; bio?: string } = {};
+    if (name) updateData.name = name;
+    if (bio) updateData.bio = bio;
+
+    if (Object.keys(updateData).length === 0) {
+        throw new functions.https.HttpsError("invalid-argument", "No profile data provided to update.");
+    }
+    
+    // Update Firestore document
+    await userRef.update(updateData);
+
+    // Update Firebase Auth profile
+    await admin.auth().updateUser(userId, {
+        displayName: name,
+    });
+
+    return { status: "success", message: "Profile updated successfully." };
+});
+
+
+/**
  * Allows a user to RSVP to an event.
  */
 export const rsvpToEvent = functions.https.onCall(async (data, context) => {
@@ -211,17 +243,16 @@ export const publishStory = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * Creates a system-wide broadcast. Only available to admins.
+ * Creates a system-wide broadcast.
  */
 export const createBroadcast = functions.https.onCall(async (data, context) => {
-    // Check for admin role from custom claims
-    if (context.auth?.token.role !== 'admin') {
+    if (!context.auth || context.auth.token.role !== 'admin') {
         throw new functions.https.HttpsError("permission-denied", "You must be an admin to create a broadcast.");
     }
     const { title, message, type } = data;
 
     if (!title || !message || !type) {
-        throw new functions.https.HttpsError("invalid-argument", "Title, message, and type are required fields.");
+        throw new functions.https.HttpsError("invalid-argument", "Title, message, and type are required.");
     }
 
     await db.collection("broadcasts").add({
