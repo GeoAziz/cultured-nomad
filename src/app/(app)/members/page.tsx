@@ -65,6 +65,7 @@ export default function MembersPage() {
 
   useEffect(() => {
     const fetchMembers = async () => {
+        setLoading(true);
         const db = getFirestore(app);
         const membersCollection = collection(db, 'users');
         const memberSnapshot = await getDocs(membersCollection);
@@ -126,9 +127,10 @@ export default function MembersPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="Mentor">Mentor</SelectItem>
-              <SelectItem value="Techie">Techie</SelectItem>
-              <SelectItem value="Seeker">Seeker</SelectItem>
+              <SelectItem value="mentor">Mentor</SelectItem>
+              <SelectItem value="techie">Techie</SelectItem>
+              <SelectItem value="seeker">Seeker</SelectItem>
+              <SelectItem value="member">Member</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -162,7 +164,7 @@ export default function MembersPage() {
                     </Avatar>
                     <h3 className="font-headline text-lg font-bold">{member.name}</h3>
                     <p className="text-sm text-foreground/70 mb-4">{member.industry}</p>
-                    <Badge className={cn('font-semibold', getRoleClass(member.role))}>{member.role}</Badge>
+                    <Badge className={cn('font-semibold capitalize', getRoleClass(member.role))}>{member.role}</Badge>
                 </CardContent>
                 </Card>
             </motion.div>
