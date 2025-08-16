@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -5,19 +6,18 @@ import {
   useEffect,
   createContext,
   ReactNode,
-  useContext,
 } from 'react';
 import {
   onAuthStateChanged,
-  User,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
   sendPasswordResetEmail,
+  type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase/firebase_config';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { app, auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -40,7 +40,7 @@ export interface AuthContextType {
     email: string,
     pass: string,
     name: string,
-    callbacks: { onSuccess: () => void; onError: (msg: string) => void }
+    callbacks: { onSuccess: () => void; onError: (msg:string) => void }
   ) => Promise<void>;
   logout: () => void;
   sendPasswordReset: (
@@ -53,41 +53,73 @@ export const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
+const getFirebaseAuthErrorMessage = (errorCode: string): string => {
+    switch (errorCode) {
+        case "auth/invalid-email":
+            return "Please enter a valid email address.";
+        case "auth/user-disabled":
+            return "This account has been disabled.";
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+        case "auth/invalid-credential":
+            return "Invalid email or password.";
+        case "auth/email-already-in-use":
+            return "An account with this email already exists.";
+        case "auth/weak-password":
+            return "Password should be at least 6 characters.";
+        case "auth/api-key-not-valid":
+             return "The Firebase API Key is not valid. Please check your configuration.";
+        case "permission-denied":
+        case "auth/permission-denied":
+             return "Email/Password sign-in is not enabled for this project. Please enable it in the Firebase console under Authentication > Sign-in method.";
+        default:
+            console.error("Unhandled Firebase Auth Error Code:", errorCode);
+            return "An unexpected error occurred. Please try again.";
+    }
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Setting up auth state listener...');
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', user ? 'User authenticated' : 'No user');
-      if (user) {
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            console.log('User data loaded:', { role: userData.role });
-            setUser({ uid: user.uid, ...userData } as UserProfile);
-          } else {
-            console.warn('No user document found for authenticated user');
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-          setUser(null);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+            const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
+            
+            if (firebaseUser.displayName !== userProfile.name || firebaseUser.photoURL !== userProfile.avatar) {
+               try {
+                 await updateProfile(firebaseUser, { 
+                    displayName: userProfile.name, 
+                    photoURL: userProfile.avatar 
+                });
+               } catch (e) {
+                 console.error("Error updating firebase user profile", e)
+               }
+            }
+            setUser(userProfile);
+        } else {
+          console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
+          // Create a default profile if it doesn't exist, which can happen on first signup.
+           const basicProfile: UserProfile = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                name: firebaseUser.displayName,
+                role: 'member',
+                avatar: firebaseUser.photoURL || `https://placehold.co/150x150.png`
+            }
+            setUser(basicProfile);
         }
       } else {
-        console.log('No authenticated user');
         setUser(null);
       }
       setLoading(false);
     });
-
-    return () => {
-      console.log('Cleaning up auth state listener');
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   const login = async (
@@ -98,31 +130,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('Starting auth process...', { email });
       
-      // First, check if Firebase is properly initialized
-      if (!auth) {
-        console.error('Firebase Auth is not initialized');
-        throw new Error('Authentication service is not available');
-      }
-      
-      let userCredential;
-      try {
-        userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      } catch (error: any) {
-        console.error('Firebase auth error:', {
-          code: error?.code,
-          message: error?.message,
-          name: error?.name,
-          stack: error?.stack
-        });
-        throw error;
-      }
-
-      console.log('Auth successful, fetching user doc...');
-      
-      const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDoc = await getDoc(userDocRef)
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass)
         .catch(error => {
-          console.error('Firestore error:', {
+          console.error('Firebase auth error:', {
             code: error.code,
             message: error.message,
             fullError: error
@@ -130,25 +140,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw error;
         });
 
+      console.log('Auth successful, fetching user doc...');
+      
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      const userDoc = await getDoc(userDocRef);
+
       if (userDoc.exists()) {
-        const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
-        console.log('User profile found:', { role: userProfile.role });
-        setUser(userProfile);
-        callbacks.onSuccess(userProfile.role);
+        const userRole = userDoc.data().role || 'member';
+        callbacks.onSuccess(userRole);
       } else {
-        console.error('No user document found for uid:', userCredential.user.uid);
+        // This case should not be hit if seeding is correct, but as a fallback.
+        console.warn("User authenticated but no profile found in Firestore. This is unexpected.");
         await signOut(auth);
-        callbacks.onError('User profile not found. Please contact support.');
+        callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
-      console.error('Login error caught:', {
-        code: error.code,
-        message: error.message,
-        fullError: error
-      });
+      console.error("Login function error:", error);
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const signup = async (
     email: string,
@@ -156,32 +169,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     name: string,
     callbacks: { onSuccess: () => void; onError: (msg: string) => void }
   ) => {
+    setLoading(true);
       try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
           await updateProfile(newUser, { displayName: name });
-
-          // Create user document in Firestore
-          const userDocRef = doc(db, 'users', newUser.uid);
-          const newUserProfile: Omit<UserProfile, 'uid' | 'role'> & {uid: string, role: string, bio: string, interests: string[], joinedAt: Date, isMentor: boolean} = {
-              uid: newUser.uid,
-              name,
-              email,
-              role: 'member', // default role
-              avatar: `https://placehold.co/150x150.png`,
-              bio: "New member of the Cultured Nomads sisterhood!",
-              interests: [],
-              joinedAt: new Date(),
-              isMentor: false,
-          };
-          await setDoc(userDocRef, newUserProfile);
-          setUser(newUserProfile as UserProfile);
-
-
+          
           callbacks.onSuccess();
+
       } catch (error: any) {
           callbacks.onError(getFirebaseAuthErrorMessage(error.code));
+      } finally {
+        setLoading(false);
       }
   };
 
@@ -198,8 +198,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
-    setUser(null);
     await signOut(auth);
+    setUser(null);
   };
 
   const value = {
@@ -212,23 +212,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-const getFirebaseAuthErrorMessage = (errorCode: string): string => {
-    switch (errorCode) {
-        case "auth/invalid-email":
-            return "Please enter a valid email address.";
-        case "auth/user-disabled":
-            return "This account has been disabled.";
-        case "auth/user-not-found":
-        case "auth/wrong-password":
-        case "auth/invalid-credential":
-            return "Invalid email or password.";
-        case "auth/email-already-in-use":
-            return "An account with this email already exists.";
-        case "auth/weak-password":
-            return "Password should be at least 6 characters.";
-        default:
-            return "An unexpected error occurred. Please try again.";
-    }
 };

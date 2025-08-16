@@ -1,3 +1,4 @@
+
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 
@@ -8,23 +9,34 @@ const db = admin.firestore();
 
 /**
  * Triggered on new user creation to set up their profile in Firestore.
+ * This will NOT run for users created via the Admin SDK (e.g. seeding script).
  */
 export const assignUserRole = functions.auth.user().onCreate(async (user) => {
-  const { uid, email, displayName, photoURL } = user;
-  const userRef = db.collection("users").doc(uid);
+  // Check if the user was created by an admin by checking for provider data.
+  // Client-side signups (email/password) will have a 'password' provider.
+  // Admin SDK created users will have an empty providerData array.
+  if (user.providerData.some(p => p.providerId === 'password')) {
+      const { uid, email, displayName, photoURL } = user;
+      const userRef = db.collection("users").doc(uid);
 
-  return userRef.set({
-    uid,
-    name: displayName || email,
-    email,
-    avatar: photoURL || `https://placehold.co/150x150.png`,
-    role: "member", // Default role
-    bio: "New member of the Cultured Nomads sisterhood!",
-    interests: [],
-    joinedAt: admin.firestore.FieldValue.serverTimestamp(),
-    isMentor: false,
-  });
+      console.log(`New user signup from client: ${email}. Creating profile.`);
+
+      return userRef.set({
+        uid,
+        name: displayName || email,
+        email,
+        avatar: photoURL || `https://placehold.co/150x150.png`,
+        role: "member", // Default role
+        bio: "New member of the Cultured Nomads sisterhood!",
+        interests: [],
+        joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+        isMentor: false,
+      });
+  }
+  console.log(`Skipping profile creation for admin-created user: ${user.email}`);
+  return null;
 });
+
 
 /**
  * Triggered on user deletion to clean up their data.
@@ -89,7 +101,7 @@ export const sendMessage = functions.https.onCall(async (data, context) => {
         content: messageContent, // Basic sanitization should be handled on client/server
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         read: false,
-        attachmentUrl: attachmentUrl || null,
+        participants: [from, to].sort() // For easier querying
     };
 
     await db.collection("messages").add(message);
