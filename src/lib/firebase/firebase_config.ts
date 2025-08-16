@@ -3,7 +3,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -38,5 +37,5 @@ setPersistence(auth, browserLocalPersistence)
 export const db = getFirestore(app);
 
 // Initialize Analytics (optional)
+// import { getAnalytics } from "firebase/analytics";
 // const analytics = getAnalytics(app);
-
