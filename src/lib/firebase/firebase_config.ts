@@ -1,6 +1,6 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 // TODO: Add SDKs for Firebase products that you want to use
@@ -15,7 +15,8 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || undefined
+  // Conditionally add measurementId only if it exists
+  ...(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID && { measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }),
 };
 
 // Initialize Firebase
@@ -25,7 +26,8 @@ console.log('Initializing Firebase with config:', {
   storageBucket: firebaseConfig.storageBucket
 });
 
-export const app = initializeApp(firebaseConfig);
+// Prevent re-initialization on the client
+export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 // Initialize Firebase Auth with persistence
 export const auth = getAuth(app);
@@ -35,7 +37,3 @@ setPersistence(auth, browserLocalPersistence)
 
 // Initialize Firestore
 export const db = getFirestore(app);
-
-// Initialize Analytics (optional)
-// import { getAnalytics } from "firebase/analytics";
-// const analytics = getAnalytics(app);
