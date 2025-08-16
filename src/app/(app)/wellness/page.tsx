@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import PageHeader from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,8 +21,6 @@ const moods = [
     { emoji: '😫', label: 'Overwhelmed' },
 ];
 
-const journalPrompt = "What's one small step you took today that you're proud of, and why did it matter?";
-
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -40,8 +38,25 @@ export default function WellnessPage() {
     const [selectedMood, setSelectedMood] = useState<string | null>(null);
     const [winOfTheDay, setWinOfTheDay] = useState('');
     const [journalEntry, setJournalEntry] = useState('');
+    const [journalPrompt, setJournalPrompt] = useState("Loading your daily prompt...");
     const [loading, setLoading] = useState<Record<string, boolean>>({});
     const { toast } = useToast();
+
+    useEffect(() => {
+        const fetchPrompt = async () => {
+            try {
+                const functions = getFunctions(app);
+                const getDailyPrompt = httpsCallable(functions, 'getDailyPrompt');
+                const result: any = await getDailyPrompt();
+                setJournalPrompt(result.data.prompt);
+            } catch (error) {
+                console.error("Error fetching daily prompt", error);
+                setJournalPrompt("What's one small step you took today that you're proud of, and why did it matter?"); // Fallback prompt
+            }
+        };
+        fetchPrompt();
+    }, []);
+
 
     const handleLogMood = async (mood: string, notes?: string) => {
         const loadingKey = notes ? 'win' : mood;
