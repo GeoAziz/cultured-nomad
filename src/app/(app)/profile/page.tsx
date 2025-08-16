@@ -1,3 +1,4 @@
+
 "use client";
 
 import PageHeader from '@/components/shared/page-header';
@@ -13,6 +14,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth, UserProfile } from '@/hooks/use-auth';
+import Link from 'next/link';
 
 // TODO: Replace with a real data fetch from a 'user_timeline' collection
 const timeline = [
@@ -123,10 +125,12 @@ export default function ProfilePage() {
                                 <p className="text-primary font-semibold capitalize">{user.role}</p>
                             </div>
                             <div className="mt-4 md:mt-0">
-                                <Button className="glow-button-accent">
-                                    <Edit className="mr-2" />
-                                    Edit Profile
-                                </Button>
+                                <Link href="/settings" passHref>
+                                    <Button className="glow-button-accent">
+                                        <Edit className="mr-2" />
+                                        Edit Profile
+                                    </Button>
+                                </Link>
                             </div>
                         </div>
                     </div>
