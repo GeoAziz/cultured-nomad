@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/seed.mjs"
+    "seed": "tsx scripts/seed.mjs",
+    "cleanup": "tsx scripts/cleanup.mjs"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",

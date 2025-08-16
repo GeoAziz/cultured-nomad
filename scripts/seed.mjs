@@ -2,82 +2,95 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+// Import the service account key
 import serviceAccount from '../serviceAccountKey.json' assert { type: 'json' };
 
-// Hardcoded user data based on credentials.md
-const usersToSeed = [
-    // Admins
-    { email: 'Christina_Harris60@hotmail.com', role: 'admin', name: 'Christina Harris', isMentor: false, industry: 'Tech', bio: 'Admin user', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'woman portrait' },
-    { email: 'Courtney.Robel@hotmail.com', role: 'admin', name: 'Courtney Robel', isMentor: false, industry: 'Tech', bio: 'Admin user', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'professional woman' },
+// Initialize Firebase Admin SDK
+initializeApp({
+  credential: cert(serviceAccount),
+});
 
-    // Mentors
-    { email: 'Kristi.Waelchi1@hotmail.com', role: 'mentor', name: 'Kristi Waelchi', isMentor: true, industry: 'Fintech', bio: 'Fintech mentor with 10+ years of experience.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'woman smile' },
-    { email: 'Kayla.Cremin@gmail.com', role: 'mentor', name: 'Kayla Cremin', isMentor: true, industry: 'AI/ML', bio: 'AI researcher and enthusiast.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'woman tech' },
-    { email: 'Randall_Fay@gmail.com', role: 'mentor', name: 'Randall Fay', isMentor: true, industry: 'Web3', bio: 'Building the decentralized future.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'man professional' },
+const auth = getAuth();
+const db = getFirestore();
 
-    // Members
-    { email: 'Paula_Hessel7@yahoo.com', role: 'member', name: 'Paula Hessel', isMentor: false, industry: 'Creative', bio: 'Creative director and storyteller.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'creative woman' },
-    { email: 'Leslie.Lowe39@hotmail.com', role: 'member', name: 'Leslie Lowe', isMentor: false, industry: 'Healthcare', bio: 'Innovating in health-tech.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'woman healthcare' },
-    { email: 'Clarence.Ernser93@yahoo.com', role: 'member', name: 'Clarence Ernser', isMentor: false, industry: 'Fashion', bio: 'Fashion-tech founder.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'man fashion' },
-    { email: 'Felix_Christiansen@hotmail.com', role: 'member', name: 'Felix Christiansen', isMentor: false, industry: 'Tech', bio: 'Aspiring software engineer.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'man tech' },
-    { email: 'Ms.Joanne@gmail.com', role: 'member', name: 'Joanne Kertzmann', isMentor: false, industry: 'Creative', bio: 'Graphic designer and artist.', avatar: 'https://placehold.co/150x150.png', dataAiHint: 'woman artist' },
-];
+// --- Main Seeding Function ---
+async function seedDatabase() {
+  console.log('--- Starting database seed ---');
 
-const defaultPassword = 'password123';
+  try {
+    // 1. Read users from the users.md file
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const usersPath = resolve(__dirname, '../src/lib/users.md');
+    const usersFile = await readFile(usersPath, 'utf-8');
+    const usersToCreate = usersFile
+      .split('\n')
+      .filter(line => line.trim() !== '') // Skip empty lines
+      .map(line => {
+        const [email, name, role] = line.split(',').map(s => s.trim());
+        return { email, name, role };
+      });
 
-console.log('--- Starting database seed ---');
+    if (usersToCreate.length === 0) {
+      console.log('No users found in users.md. Aborting seed.');
+      return;
+    }
 
-try {
-    const app = initializeApp({
-        credential: cert(serviceAccount),
-        databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
-    });
+    console.log(`Found ${usersToCreate.length} users to create.`);
 
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    // 2. Create users sequentially for clearer logging
+    for (const userData of usersToCreate) {
+      const { email, name, role } = userData;
+      const password = 'password123'; // Standard password for all seeded users
 
-    for (const userData of usersToSeed) {
-        const { email, role, name, isMentor, industry, bio, avatar, dataAiHint } = userData;
-        console.log(`Processing user: ${email} with role: ${role}`);
+      try {
+        console.log(`Creating user: ${email} with role: ${role}`);
 
-        try {
-            // Create user in Firebase Auth
-            const userRecord = await auth.createUser({
-                email: email,
-                password: defaultPassword,
-                displayName: name,
-                photoURL: avatar,
-            });
+        // Create user in Firebase Authentication
+        const userRecord = await auth.createUser({
+          email,
+          password,
+          displayName: name,
+        });
 
-            console.log(`  -> Successfully created Auth user: ${userRecord.uid}`);
+        const uid = userRecord.uid;
 
-            // Create user profile in Firestore
-            const userDocRef = db.collection('users').doc(userRecord.uid);
-            await userDocRef.set({
-                uid: userRecord.uid,
-                email: email,
-                role: role,
-                name: name,
-                isMentor: isMentor,
-                industry: industry,
-                bio: bio,
-                avatar: avatar,
-                dataAiHint: dataAiHint,
-                joinedAt: new Date(),
-            });
+        // Create user document in Firestore
+        const userDocRef = db.collection('users').doc(uid);
+        await userDocRef.set({
+          uid,
+          name,
+          email,
+          role,
+          avatar: `https://placehold.co/150x150.png`,
+          bio: `A passionate ${role} in the Cultured Nomads sisterhood.`,
+          interests: [],
+          joinedAt: new Date(),
+          isMentor: role === 'mentor',
+        });
 
-            console.log(`  -> Successfully created Firestore profile for ${email}`);
+        console.log(`Successfully created user ${email} (UID: ${uid})`);
 
-        } catch (error) {
-            console.error(`  -> Error processing user ${email}:`, error.message);
+      } catch (error) {
+        if (error.code === 'auth/email-already-exists') {
+          console.warn(`User with email ${email} already exists. Skipping.`);
+        } else {
+          console.error(`Error creating user ${email}:`, error.message);
+          // Optional: decide if you want to stop the whole script on a single failure
+          // throw error; 
         }
+      }
     }
 
     console.log('--- Seeding finished successfully! ---');
-    // The process will exit automatically when the script is done.
-
-} catch (error) {
-    console.error('--- Seeding failed! ---');
-    console.error('An error occurred during the seeding process:', error.message);
+  } catch (error) {
+    console.error('\n--- Seeding failed! ---');
+    console.error('An error occurred during the seeding process:', error);
     process.exit(1); // Exit with an error code
+  }
 }
+
+seedDatabase();
