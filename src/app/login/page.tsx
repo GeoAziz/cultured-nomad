@@ -36,22 +36,12 @@ export default function LoginPage() {
           }
         },
         onError: (err: any) => {
-          console.error('Login error details:', { 
-            error: err,
-            message: typeof err === 'object' && err !== null ? err.message : err,
-            code: typeof err === 'object' && err !== null ? err.code : undefined,
-            stack: typeof err === 'object' && err !== null ? err.stack : undefined
-          });
-          setError(typeof err === 'string' ? err : err?.message || 'Login failed');
+          console.error('Login error from callback:', err);
+          setError(err);
         },
       });
     } catch (err: any) {
-      console.error('Login exception details:', {
-        error: err,
-        message: err?.message,
-        code: err?.code,
-        stack: err?.stack
-      });
+      console.error('Login exception caught:', err);
       setError(err.message || 'An unexpected error occurred.');
     } finally {
       console.log('Login attempt finished');

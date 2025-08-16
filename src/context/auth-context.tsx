@@ -70,6 +70,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             console.log('User data loaded:', { role: userData.role });
+             // Sync Firestore data with Auth profile
+            if (user.displayName !== userData.name || user.photoURL !== userData.avatar) {
+              await updateProfile(user, { displayName: userData.name, photoURL: userData.avatar });
+              console.log('Firebase Auth profile synced with Firestore data.');
+            }
             setUser({ uid: user.uid, ...userData } as UserProfile);
           } else {
             console.warn('No user document found for authenticated user');
