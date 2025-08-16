@@ -1,4 +1,5 @@
 
+
 {
   "indexes": [
     {
@@ -19,7 +20,7 @@
       "collectionGroup": "messages",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "participants", "order": "ASCENDING" },
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
     },
@@ -37,6 +38,13 @@
       "fields": [
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "eventId", "order": "ASCENDING" }
+      ]
+    },
+     {
+      "collectionGroup": "feedback",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "submitted", "order": "DESCENDING" }
       ]
     }
   ],

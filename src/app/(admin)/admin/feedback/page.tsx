@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Archive, Bug, Lightbulb, MessageSquareWarning, Search } from 'lucide-react';
 import PageHeader from '@/components/shared/page-header';
@@ -17,14 +18,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { collection, getDocs, getFirestore, query, orderBy } from 'firebase/firestore';
+import { app } from '@/lib/firebase/firebase_config';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const feedbackData = [
-  { id: 'FB001', type: 'Bug', subject: 'Profile picture not updating on mobile', user: 'user123', status: 'Open', submitted: '2024-07-28' },
-  { id: 'FB002', type: 'Suggestion', subject: 'Add dark mode to the public site', user: 'user456', status: 'Reviewed', submitted: '2024-07-27' },
-  { id: 'FB003', type: 'Abuse Report', subject: 'Inappropriate message from user X', user: 'user789', status: 'Open', submitted: '2024-07-27' },
-  { id: 'FB004', type: 'Suggestion', subject: 'Gamify the mentorship process', user: 'user101', status: 'Archived', submitted: '2024-07-26' },
-  { id: 'FB005', type: 'Bug', subject: 'Login button unresponsive on Firefox', user: 'user212', status: 'In Progress', submitted: '2024-07-25' },
-];
+interface Feedback {
+  id: string;
+  type: 'Bug' | 'Suggestion' | 'Abuse Report';
+  subject: string;
+  user: string;
+  status: 'Open' | 'In Progress' | 'Reviewed' | 'Archived';
+  submitted: string;
+}
 
 const getStatusClass = (status: string) => {
   switch (status) {
@@ -46,7 +51,24 @@ const getTypeIcon = (type: string) => {
 }
 
 export default function FeedbackPage() {
+  const [feedbackData, setFeedbackData] = useState<Feedback[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  useEffect(() => {
+    const fetchFeedback = async () => {
+      setLoading(true);
+      const db = getFirestore(app);
+      const feedbackCollection = collection(db, 'feedback');
+      const q = query(feedbackCollection, orderBy('submitted', 'desc'));
+      const feedbackSnapshot = await getDocs(q);
+      const feedbackList = feedbackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Feedback));
+      setFeedbackData(feedbackList);
+      setLoading(false);
+    }
+    fetchFeedback();
+  }, []);
+  
   const filteredFeedback = feedbackData.filter(f => f.subject.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
@@ -86,25 +108,38 @@ export default function FeedbackPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredFeedback.map((item) => (
-                  <TableRow key={item.id} className="border-slate-800 hover:bg-slate-900/50">
-                    <TableCell className="font-medium flex items-center gap-2">
-                        {getTypeIcon(item.type)}
-                        {item.type}
-                    </TableCell>
-                    <TableCell>{item.subject}</TableCell>
-                    <TableCell>{item.user}</TableCell>
-                    <TableCell>
-                      <Badge className={cn('font-semibold border-none', getStatusClass(item.status))}>
-                        {item.status}
-                      </Badge>
-                    </TableCell>
-                     <TableCell>{item.submitted}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">View Details</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {loading ? (
+                  Array.from({length: 5}).map((_, i) => (
+                    <TableRow key={i} className="border-slate-800">
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-24 inline-block rounded" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  filteredFeedback.map((item) => (
+                    <TableRow key={item.id} className="border-slate-800 hover:bg-slate-900/50">
+                      <TableCell className="font-medium flex items-center gap-2">
+                          {getTypeIcon(item.type)}
+                          {item.type}
+                      </TableCell>
+                      <TableCell>{item.subject}</TableCell>
+                      <TableCell>{item.user}</TableCell>
+                      <TableCell>
+                        <Badge className={cn('font-semibold border-none', getStatusClass(item.status))}>
+                          {item.status}
+                        </Badge>
+                      </TableCell>
+                       <TableCell>{new Date(item.submitted).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">View Details</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
          </CardContent>
