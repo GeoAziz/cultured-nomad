@@ -29,13 +29,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { collection, getDocs, getFirestore } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { UserRole } from '@/hooks/use-auth';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
-  status: string;
+  role: UserRole;
+  status: string; // This is mock status, can be expanded later
   avatar: string;
   dataAiHint?: string;
 }
@@ -57,10 +58,11 @@ const getStatusClass = (status: string) => {
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   
-  // Replace with actual data fetching
   useEffect(() => {
     const fetchUsers = async () => {
         setLoading(true);
@@ -68,12 +70,19 @@ export default function UserManagementPage() {
         const usersSnapshot = await getDocs(collection(db, "users"));
         const usersList = usersSnapshot.docs.map(doc => ({id: doc.id, ...doc.data(), status: 'Active'} as User)); // Status is mock
         setUsers(usersList);
+        setFilteredUsers(usersList);
         setLoading(false);
     }
     fetchUsers();
   }, [])
   
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  useEffect(() => {
+    let results = users
+      .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(u => roleFilter === 'all' || u.role === roleFilter);
+    setFilteredUsers(results);
+  }, [searchTerm, roleFilter, users]);
+
 
   return (
     <motion.div
@@ -98,15 +107,17 @@ export default function UserManagementPage() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <Select defaultValue="all-roles">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="w-[160px] bg-slate-900/50 border-slate-700">
                         <SelectValue placeholder="Filter by Role" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all-roles">All Roles</SelectItem>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
                         <SelectItem value="mentor">Mentor</SelectItem>
                         <SelectItem value="techie">Techie</SelectItem>
                         <SelectItem value="seeker">Seeker</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button className="glow-button-accent">
@@ -160,7 +171,7 @@ export default function UserManagementPage() {
                             </div>
                         </TableCell>
                         <TableCell>
-                            <Badge className={cn('font-semibold border-none', getRoleClass(user.role))}>
+                            <Badge className={cn('font-semibold border-none capitalize', getRoleClass(user.role))}>
                                 {user.role}
                             </Badge>
                         </TableCell>
@@ -197,4 +208,3 @@ export default function UserManagementPage() {
     </motion.div>
   );
 }
-
