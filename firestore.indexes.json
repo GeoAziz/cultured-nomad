@@ -46,6 +46,14 @@
       "fields": [
         { "fieldPath": "submitted", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "mentorships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mentorId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
