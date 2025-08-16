@@ -15,10 +15,9 @@ import {
   updateProfile,
   sendPasswordResetEmail,
   type User as FirebaseUser,
-  getAuth,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { app, db } from '@/lib/firebase/firebase_config';
+import { auth, db } from '@/lib/firebase/firebase_config';
 import type { Auth } from 'firebase/auth';
 
 export interface UserProfile {
@@ -84,7 +83,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const auth = getAuth(app);
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -131,7 +129,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     setLoading(true);
     try {
-      const auth = getAuth(app);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
@@ -142,7 +139,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         // This case should not be hit if seeding is correct, but as a fallback.
         console.warn("User authenticated but no profile found in Firestore. This is unexpected.");
-        const auth = getAuth(app);
         await signOut(auth);
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
@@ -163,7 +159,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     setLoading(true);
       try {
-          const auth = getAuth(app);
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
@@ -183,7 +178,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     callbacks: { onSuccess: () => void; onError: (msg: string) => void }
   ) => {
     try {
-        const auth = getAuth(app);
         await sendPasswordResetEmail(auth, email);
         callbacks.onSuccess();
     } catch(error: any) {
@@ -192,7 +186,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
-    const auth = getAuth(app);
     await signOut(auth);
     setUser(null);
   };

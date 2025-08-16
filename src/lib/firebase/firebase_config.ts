@@ -1,7 +1,7 @@
 
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth as getFirebaseAuth, browserLocalPersistence, setPersistence, type Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration is loaded from environment variables
@@ -16,28 +16,17 @@ const firebaseConfig = {
   ...(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID && { measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }),
 };
 
-// A function to initialize and get the Firebase App instance
-function getAppInstance(): FirebaseApp {
-    if (!getApps().length) {
-        return initializeApp(firebaseConfig);
-    }
-    return getApp();
-}
+// Initialize Firebase
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth: Auth = getAuth(app);
+const db = getFirestore(app);
 
-// A function to get the Firebase Auth instance
-function getAuthInstance(): Auth {
-    const app = getAppInstance();
-    const auth = getFirebaseAuth(app);
-    // It's safe to call this every time, it doesn't re-apply if already set.
-    if (typeof window !== 'undefined') {
-      setPersistence(auth, browserLocalPersistence)
-        .catch(error => console.error('Error setting auth persistence:', error));
-    }
-    return auth;
+// Set persistence on the client side
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence)
+    .catch(error => console.error('Error setting auth persistence:', error));
 }
 
 
-// Export functions to get instances
-export const app = getAppInstance();
-export const auth = getAuthInstance();
-export const db = getFirestore(app);
+// Export instances
+export { app, auth, db };
