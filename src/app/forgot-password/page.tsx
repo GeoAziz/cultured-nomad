@@ -44,45 +44,47 @@ export default function ForgotPasswordPage() {
       title="Forgot Password"
       description="Enter your email to receive a password reset link."
     >
-      {error && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Alert variant="destructive">
-            <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </motion.div>
-      )}
-      {success && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <Alert variant="default" className="border-green-500/50 text-green-400">
-            <CheckCircle className="h-4 w-4 text-green-400" />
-            <AlertTitle>Success</AlertTitle>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        </motion.div>
-      )}
-      <form className="space-y-6" onSubmit={handleReset}>
-        <AuthInput
-          id="email"
-          type="email"
-          placeholder="your.email@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          icon={Mail}
-          disabled={loading || !!success}
-          required
-        />
-        <Button type="submit" className="w-full glow-button-accent text-lg py-6" disabled={loading || !!success}>
-          {loading ? <Loader2 className="animate-spin" /> : <> <Send className="mr-2"/> Send Reset Link</>}
-        </Button>
-      </form>
-       <p className="text-center text-sm text-muted-foreground">
-        Remember your password?{' '}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
-          Sign In
-        </Link>
-      </p>
+        <div className="space-y-4">
+            {error && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <Alert variant="destructive">
+                    <ShieldAlert className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                </motion.div>
+            )}
+            {success && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <Alert variant="default" className="border-green-500/50 text-green-300 [&>svg]:text-green-400">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>Success</AlertTitle>
+                    <AlertDescription>{success}</AlertDescription>
+                </Alert>
+                </motion.div>
+            )}
+            <form className="space-y-6" onSubmit={handleReset}>
+                <AuthInput
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                icon={Mail}
+                disabled={loading || !!success}
+                required
+                />
+                <Button type="submit" className="w-full glow-button-accent text-lg py-6" disabled={loading || !!success}>
+                {loading ? <Loader2 className="animate-spin" /> : <> <Send className="mr-2"/> Send Reset Link</>}
+                </Button>
+            </form>
+            <p className="text-center text-sm text-muted-foreground">
+                Remember your password?{' '}
+                <Link href="/login" className="font-semibold text-primary hover:underline">
+                Sign In
+                </Link>
+            </p>
+        </div>
     </AuthLayout>
   );
 }

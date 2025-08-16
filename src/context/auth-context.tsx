@@ -28,6 +28,10 @@ export interface UserProfile {
     name: string | null;
     role: UserRole;
     avatar?: string;
+    banner?: string;
+    bio?: string;
+    dataAiHint?: string;
+    dataAiHintBanner?: string;
 }
 
 export interface AuthContextType {

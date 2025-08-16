@@ -4,6 +4,7 @@
 import Starfield from '@/components/landing/starfield';
 import Logo from '@/components/shared/logo';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -52,7 +53,7 @@ export default function AuthLayout({ children, title, description }: AuthLayoutP
 
         <motion.div 
             variants={itemVariants} 
-            className="glass-card p-8 space-y-6"
+            className="glass-card p-8"
         >
             {children}
         </motion.div>
@@ -60,6 +61,3 @@ export default function AuthLayout({ children, title, description }: AuthLayoutP
     </div>
   );
 }
-// This needs to import Link for the Logo
-import Link from 'next/link';
-
