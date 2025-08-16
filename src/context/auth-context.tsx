@@ -16,7 +16,7 @@ import {
   sendPasswordResetEmail,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { app, auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
@@ -116,16 +116,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             setUser(userProfile);
         } else {
+          // This case can happen if the client-side signup document write is slow or fails,
+          // and the onAuthStateChanged listener runs before the doc is created.
+          // The `assignUserRole` function will eventually create it.
           console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
-          // This case is handled by the `assignUserRole` cloud function, but as a fallback:
-           const basicProfile: UserProfile = {
+          // Create a temporary profile to avoid a null user state.
+           const temporaryProfile: UserProfile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 name: firebaseUser.displayName,
-                role: 'member',
+                role: 'member', // Default assumption
                 avatar: firebaseUser.photoURL || `https://placehold.co/150x150.png`
             }
-            setUser(basicProfile);
+            setUser(temporaryProfile);
         }
       } else {
         setUser(null);
@@ -174,22 +177,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
-          // This displayName will be picked up by the `assignUserRole` Cloud Function
-          await updateProfile(newUser, { displayName: name });
+          // Update the user's Auth profile immediately
+          await updateProfile(newUser, { 
+            displayName: name,
+            photoURL: `https://placehold.co/150x150.png` 
+          });
           
-          // We manually create the profile here as well so the user doesn't have to wait for the function to trigger
+          // We manually create the profile here as well so the user doesn't have to wait 
+          // for the Cloud Function to trigger. This provides a faster UI response.
           const userRef = doc(db, 'users', newUser.uid);
           await setDoc(userRef, {
              uid: newUser.uid,
              name,
              email,
              avatar: `https://placehold.co/150x150.png`,
-             role: "member",
+             role: "member", // Default role
              bio: bio || "New member of the Cultured Nomads sisterhood!",
              interests: interests || [],
-             joinedAt: new Date(),
+             joinedAt: serverTimestamp(),
              isMentor: false,
-          })
+          });
 
           callbacks.onSuccess();
 
