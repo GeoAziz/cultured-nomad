@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CheckCircle, PlusCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { collection, getDocs, query, orderBy, getFirestore, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, getFirestore, Timestamp, where, doc, getDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -60,7 +60,8 @@ export default function EventsPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchEventsAndRsvps = async () => {
+        setLoading(true);
         const db = getFirestore(app);
         const eventsCollection = collection(db, 'events');
         const q = query(eventsCollection, orderBy('date', 'desc'));
@@ -71,12 +72,24 @@ export default function EventsPage() {
             return { id: doc.id, ...data, date: eventDate } as Event;
         });
         setEvents(eventList);
+
+        if (user) {
+            const userRsvps: Record<string, boolean> = {};
+            for (const event of eventList) {
+                const rsvpRef = doc(db, 'event_rsvps', `${user.uid}_${event.id}`);
+                const rsvpSnap = await getDoc(rsvpRef);
+                if (rsvpSnap.exists()) {
+                    userRsvps[event.id] = true;
+                }
+            }
+            setRsvps(userRsvps);
+        }
+
         setLoading(false);
-        // In a real app, you'd fetch the user's existing RSVPs here
     };
 
-    fetchEvents();
-  }, []);
+    fetchEventsAndRsvps();
+  }, [user]);
 
   const handleRsvp = async (eventId: string, eventTitle: string) => {
     if (!user) {
@@ -87,12 +100,12 @@ export default function EventsPage() {
     try {
         const functions = getFunctions(app);
         const rsvpToEvent = httpsCallable(functions, 'rsvpToEvent');
-        await rsvpToEvent({ eventId, rsvp: true });
+        await rsvpToEvent({ eventId, rsvp: !rsvps[eventId] });
 
-        setRsvps(prev => ({...prev, [eventId]: true}));
+        setRsvps(prev => ({...prev, [eventId]: !prev[eventId]}));
         toast({
-            title: '🎉 RSVP Confirmed!',
-            description: `You're all set for "${eventTitle}".`,
+            title: rsvps[eventId] ? 'RSVP Removed' : '🎉 RSVP Confirmed!',
+            description: rsvps[eventId] ? `We've removed your RSVP for "${eventTitle}".` : `You're all set for "${eventTitle}".`,
         });
     } catch (error: any) {
         console.error("Error RSVPing to event:", error);
@@ -195,7 +208,7 @@ export default function EventsPage() {
                             </Popover>
                         </CardContent>
                         <CardFooter>
-                            <Button onClick={() => handleRsvp(event.id, event.title)} disabled={isRsvpd || isRsvpLoading} className={isRsvpd ? '' : 'glow-button-accent'}>
+                            <Button onClick={() => handleRsvp(event.id, event.title)} disabled={isRsvpLoading} className={isRsvpd ? '' : 'glow-button-accent'}>
                             {isRsvpLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 
                              isRsvpd ? <><CheckCircle className="mr-2 h-4 w-4" /> RSVP'd</> : <><PlusCircle className="mr-2 h-4 w-4" /> RSVP Now</>}
                             </Button>
