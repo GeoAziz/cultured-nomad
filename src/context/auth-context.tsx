@@ -66,6 +66,8 @@ const getFirebaseAuthErrorMessage = (errorCode: string): string => {
             return "An account with this email already exists.";
         case "auth/weak-password":
             return "Password should be at least 6 characters.";
+        case "auth/api-key-not-valid":
+             return "The Firebase API Key is not valid. Please check your configuration.";
         default:
             console.error("Unhandled Firebase Auth Error Code:", errorCode);
             return "An unexpected error occurred. Please try again.";
@@ -92,19 +94,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
             setUser(userProfile);
         } else {
-          // This can happen if a user is created in Auth but not in Firestore,
-          // or if they are deleted from Firestore. We create a basic profile
-          // to prevent the app from breaking.
-          console.warn(`No Firestore document found for user ${firebaseUser.uid}. Creating one.`);
-          const newUserProfile: UserProfile = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName || 'New User',
-            role: 'member', // Default role
-            avatar: firebaseUser.photoURL || `https://placehold.co/150x150.png`
-          };
-          await setDoc(userDocRef, newUserProfile);
-          setUser(newUserProfile);
+          console.warn(`No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up.`);
+          // Cloud function will create the doc. Listener will pick it up again.
+          setUser(null);
         }
       } else {
         setUser(null);
@@ -121,25 +113,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     setLoading(true);
     try {
-      // 1. Authenticate with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      
-      // 2. Fetch the user's profile from Firestore to get their role
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
-      
+
       if (userDoc.exists()) {
         const userRole = userDoc.data().role;
-        // The onAuthStateChanged listener will handle setting the global user state.
-        // We just call the success callback to handle routing.
+        // The onAuthStateChanged listener will handle setting the global state,
+        // we just need to call the callback for routing.
         callbacks.onSuccess(userRole);
       } else {
-        // This is a failsafe for a rare condition where an auth user exists
-        // but has no corresponding Firestore document.
-        callbacks.onError("User profile not found in database. Please contact support.");
+        // This case should not happen in a normal flow.
+        await signOut(auth);
+        callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
-      // If signInWithEmailAndPassword fails, this block will execute
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
     } finally {
       setLoading(false);
