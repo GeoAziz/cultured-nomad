@@ -79,9 +79,11 @@ export const updateUserProfile = functions.https.onCall(async (data, context) =>
     await userRef.update(updateData);
 
     // Update Firebase Auth profile
-    await admin.auth().updateUser(userId, {
-        displayName: name,
-    });
+    if (name) {
+        await admin.auth().updateUser(userId, {
+            displayName: name,
+        });
+    }
 
     return { status: "success", message: "Profile updated successfully." };
 });

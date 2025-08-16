@@ -29,8 +29,10 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const root = window.document.documentElement;
-        setIsDarkMode(root.classList.contains('dark'));
+        if (typeof window !== 'undefined') {
+            const root = window.document.documentElement;
+            setIsDarkMode(root.classList.contains('dark'));
+        }
         
         if(user) {
             setName(user.name || '');
@@ -41,9 +43,11 @@ export default function SettingsPage() {
     }, [user]);
 
     const toggleTheme = () => {
-        const root = window.document.documentElement;
-        root.classList.toggle('dark');
-        setIsDarkMode(!isDarkMode);
+        if (typeof window !== 'undefined') {
+            const root = window.document.documentElement;
+            root.classList.toggle('dark');
+            setIsDarkMode(!isDarkMode);
+        }
     };
 
     const handleSaveChanges = async () => {
@@ -93,7 +97,7 @@ export default function SettingsPage() {
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="name">Full Name</Label>
-                                    <Input id="name" value={name} onChange={e => setName(e.target.value)} disabled={loading} />
+                                    <Input id="name" value={name} onChange={e => setName(e.target.value)} disabled={loading || authLoading} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email">Email</Label>
@@ -102,7 +106,7 @@ export default function SettingsPage() {
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="bio">Bio</Label>
-                                <Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} disabled={loading} className="min-h-[100px]" />
+                                <Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} disabled={loading || authLoading} className="min-h-[100px]" />
                             </div>
                             <Button onClick={handleSaveChanges} className="w-full glow-button" disabled={loading || authLoading}>
                                 {loading ? <Loader2 className="animate-spin" /> : 'Save Changes'}
