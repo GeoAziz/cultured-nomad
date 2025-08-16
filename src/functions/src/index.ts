@@ -79,9 +79,11 @@ export const updateUserProfile = functions.https.onCall(async (data, context) =>
     await userRef.update(updateData);
 
     // Update Firebase Auth profile
-    await admin.auth().updateUser(userId, {
-        displayName: name,
-    });
+    if (name) {
+        await admin.auth().updateUser(userId, {
+            displayName: name,
+        });
+    }
 
     return { status: "success", message: "Profile updated successfully." };
 });
@@ -247,11 +249,17 @@ export const publishStory = functions.https.onCall(async (data, context) => {
  * Creates a system-wide broadcast.
  */
 export const createBroadcast = functions.https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.role !== 'admin') {
+    // Role check happens on the client, but double-check here for security
+    const uid = context.auth?.uid;
+    if (!uid) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') {
         throw new functions.https.HttpsError("permission-denied", "You must be an admin to create a broadcast.");
     }
-    const { title, message, type } = data;
 
+    const { title, message, type } = data;
     if (!title || !message || !type) {
         throw new functions.https.HttpsError("invalid-argument", "Title, message, and type are required.");
     }
@@ -266,6 +274,32 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
 
     return { status: "success", message: "Broadcast created." };
 });
+
+/**
+ * Gets statistics for the mentor dashboard.
+ */
+export const getMentorDashboardStats = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    
+    const mentorId = context.auth.uid;
+    const mentorshipsRef = db.collection("mentorships");
+
+    const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+    const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+
+    const [pendingSnapshot, acceptedSnapshot] = await Promise.all([
+        pendingQuery.get(),
+        acceptedQuery.get()
+    ]);
+
+    return {
+        pendingRequests: pendingSnapshot.size,
+        activeMentees: acceptedSnapshot.size,
+    };
+});
+
 
 /**
  * Helper function to push a notification to a user's subcollection.
