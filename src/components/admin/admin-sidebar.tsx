@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -10,6 +11,7 @@ import {
   MessageSquareWarning,
   Settings,
   Bot,
+  RadioTower,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Logo from '../shared/logo';
@@ -20,6 +22,7 @@ const navItems = [
   { href: '/admin/services', label: 'Service Listings', icon: ShieldCheck },
   { href: '/admin/payments', label: 'Payments', icon: CreditCard },
   { href: '/admin/feedback', label: 'Feedback & Reports', icon: MessageSquareWarning },
+  { href: '/admin/broadcast', label: 'Broadcast Center', icon: RadioTower },
   { href: '/admin/settings', label: 'System Settings', icon: Settings },
 ];
 

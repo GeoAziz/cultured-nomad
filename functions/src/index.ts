@@ -1,6 +1,7 @@
 
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
+import { summarizeStory } from "../../src/ai/flows/story-summarizer-flow";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -187,9 +188,13 @@ export const publishStory = functions.https.onCall(async (data, context) => {
     const { title, content, tags, isAnonymous } = data;
     const userId = context.auth.uid;
 
+    // Generate excerpt using AI
+    const { excerpt } = await summarizeStory({ content });
+
     const storyData = {
         title,
         content,
+        excerpt,
         tags: tags || [],
         isAnonymous: !!isAnonymous,
         userId: userId,
@@ -203,6 +208,30 @@ export const publishStory = functions.https.onCall(async (data, context) => {
     await db.collection("stories").add(storyData);
 
     return { status: "published" };
+});
+
+/**
+ * Creates a system-wide broadcast.
+ */
+export const createBroadcast = functions.https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.role !== 'admin') {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin to create a broadcast.");
+    }
+    const { title, message, type } = data;
+
+    if (!title || !message || !type) {
+        throw new functions.https.HttpsError("invalid-argument", "Title, message, and type are required.");
+    }
+
+    await db.collection("broadcasts").add({
+        title,
+        message,
+        type, // 'info', 'warning', 'success'
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: context.auth.uid,
+    });
+
+    return { status: "success", message: "Broadcast created." };
 });
 
 /**
