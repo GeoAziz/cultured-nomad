@@ -25,7 +25,7 @@ export interface UserProfile {
     uid: string;
     email: string | null;
     name: string | null;
-    role: 'member' | 'admin';
+    role: 'member' | 'admin' | 'mentor';
     avatar?: string;
 }
 
@@ -92,7 +92,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        callbacks.onSuccess(userDoc.data().role);
+        const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
+        setUser(userProfile); // Set user profile immediately
+        callbacks.onSuccess(userProfile.role);
       } else {
         await signOut(auth);
         callbacks.onError('User profile not found. Please contact support.');
@@ -116,7 +118,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           // Create user document in Firestore
           const userDocRef = doc(db, 'users', newUser.uid);
-          await setDoc(userDocRef, {
+          const newUserProfile: Omit<UserProfile, 'uid' | 'role'> & {uid: string, role: string, bio: string, interests: string[], joinedAt: Date, isMentor: boolean} = {
               uid: newUser.uid,
               name,
               email,
@@ -126,7 +128,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               interests: [],
               joinedAt: new Date(),
               isMentor: false,
-          });
+          };
+          await setDoc(userDocRef, newUserProfile);
+          setUser(newUserProfile as UserProfile);
+
 
           callbacks.onSuccess();
       } catch (error: any) {
@@ -147,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
+    setUser(null);
     await signOut(auth);
   };
 
