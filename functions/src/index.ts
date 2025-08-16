@@ -247,11 +247,17 @@ export const publishStory = functions.https.onCall(async (data, context) => {
  * Creates a system-wide broadcast.
  */
 export const createBroadcast = functions.https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.role !== 'admin') {
+    // Role check happens on the client, but double-check here for security
+    const uid = context.auth?.uid;
+    if (!uid) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') {
         throw new functions.https.HttpsError("permission-denied", "You must be an admin to create a broadcast.");
     }
-    const { title, message, type } = data;
 
+    const { title, message, type } = data;
     if (!title || !message || !type) {
         throw new functions.https.HttpsError("invalid-argument", "Title, message, and type are required.");
     }
