@@ -1,27 +1,21 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PageHeader from '@/components/shared/page-header';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Smile } from 'lucide-react';
+import { Send, Smile, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
-import { useAuth } from '@/hooks/use-auth'; // A placeholder for your auth hook
-
-// Dummy Auth Hook - replace with your actual implementation
-const useAuth = () => ({
-    user: { 
-        uid: 'user1', // Replace with dynamic user ID
-        displayName: 'You' 
-    } 
-});
-
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 interface ChatUser {
     id: string;
@@ -51,12 +45,25 @@ export default function ConnectPage() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages]);
 
   // Fetch users to create a chat list
   useEffect(() => {
+    if(!user) return;
     const db = getFirestore(app);
     const usersCollection = collection(db, 'users');
-    const q = query(usersCollection, where('uid', '!=', user?.uid || '')); // Don't show self in chats
+    const q = query(usersCollection, where('uid', '!=', user.uid)); 
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const chatList = snapshot.docs.map(doc => ({
@@ -85,8 +92,9 @@ export default function ConnectPage() {
     setLoadingMessages(true);
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
+    // This query is now more specific, looking for messages where the participants array contains both users.
     const q = query(messagesCollection, 
-        where('participants', 'array-contains', user.uid),
+        where('participants', 'in', [[user.uid, selectedChat.id], [selectedChat.id, user.uid]]),
         orderBy('timestamp', 'asc')
     );
     
@@ -94,21 +102,15 @@ export default function ConnectPage() {
         const messageList = snapshot.docs
             .map(doc => {
                 const data = doc.data();
-                 // Filter for messages between the two users
-                const participants = data.participants;
-                if (!(participants.includes(selectedChat.id) && participants.includes(user.uid))) {
-                    return null;
-                }
-
                 return {
                     id: doc.id,
                     content: data.content,
                     senderId: data.from,
-                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString() : 'now',
+                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
                     self: data.from === user.uid,
                 } as Message;
             })
-            .filter(Boolean) as Message[]; // Remove nulls
+            .filter(Boolean) as Message[]; 
 
         setMessages(messageList);
         setLoadingMessages(false);
@@ -121,12 +123,27 @@ export default function ConnectPage() {
     setSelectedChat(chat);
   }
 
-  // TODO: Implement sendMessage Cloud Function call
-  const handleSendMessage = () => {
-    if(!newMessage.trim() || !selectedChat) return;
-    console.log(`Sending "${newMessage}" to ${selectedChat.name}`);
-    setNewMessage('');
-    // Call cloud function here: sendMessage({ to: selectedChat.id, messageContent: newMessage })
+  const handleSendMessage = async () => {
+    if(!newMessage.trim() || !selectedChat || !user) return;
+    setIsSending(true);
+    try {
+        const functions = getFunctions(app);
+        const sendMessageFn = httpsCallable(functions, 'sendMessage');
+        await sendMessageFn({
+            to: selectedChat.id,
+            messageContent: newMessage
+        });
+        setNewMessage('');
+    } catch(error: any) {
+        console.error("Error sending message:", error);
+        toast({
+            title: "Error Sending Message",
+            description: error.message || "Could not send your message. Please try again.",
+            variant: "destructive"
+        })
+    } finally {
+        setIsSending(false);
+    }
   }
 
   return (
@@ -135,8 +152,8 @@ export default function ConnectPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-full">
             {/* Chat List */}
-            <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full">
-                <div className="p-4 border-b border-primary/20">
+            <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full overflow-y-auto">
+                <div className="p-4 border-b border-primary/20 sticky top-0 bg-card/50 backdrop-blur-sm">
                     <h3 className="font-headline text-xl">Messages</h3>
                 </div>
                 <div className="space-y-1 p-2">
@@ -197,7 +214,7 @@ export default function ConnectPage() {
                         <AnimatePresence>
                              {loadingMessages ? (
                                 <div className="flex items-center justify-center h-full text-foreground/50">
-                                    <p>Loading messages...</p>
+                                    <Loader2 className="animate-spin h-8 w-8" />
                                 </div>
                             ) : (
                                 messages.map(msg => (
@@ -229,6 +246,7 @@ export default function ConnectPage() {
                                 ))
                             )}
                         </AnimatePresence>
+                        <div ref={messagesEndRef} />
                     </div>
 
                     <div className="p-4 border-t border-primary/20 flex items-center gap-2">
@@ -239,16 +257,17 @@ export default function ConnectPage() {
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                            disabled={isSending}
                          />
-                        <Button className="glow-button-accent" onClick={handleSendMessage}>
-                            <Send className="h-4 w-4 mr-2" />
+                        <Button className="glow-button-accent" onClick={handleSendMessage} disabled={isSending || !newMessage.trim()}>
+                            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                             Send
                         </Button>
                     </div>
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center text-foreground/50">
-                        {loadingChats ? <p>Loading chats...</p> : <p>Select a chat to start messaging</p>}
+                        {loadingChats ? <Loader2 className="animate-spin h-8 w-8" /> : <p>Select a chat to start messaging</p>}
                     </div>
                 )}
             </Card>

@@ -89,7 +89,7 @@ export const sendMessage = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError("unauthenticated", "You must be logged in to send messages.");
     }
 
-    const { to, messageContent, attachmentUrl } = data;
+    const { to, messageContent } = data;
     const from = context.auth.uid;
 
     if (!to || !messageContent) {
@@ -99,15 +99,15 @@ export const sendMessage = functions.https.onCall(async (data, context) => {
     const message = {
         from,
         to,
-        content: messageContent, // Basic sanitization should be handled on client/server
+        content: messageContent,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         read: false,
-        participants: [from, to].sort() // For easier querying
+        participants: [from, to].sort() 
     };
 
     await db.collection("messages").add(message);
 
-    // Send a notification to the recipient
+    // Optional: Send a notification to the recipient
     await sendNotification({
         toUserId: to,
         message: `You have a new message from a member.`,
@@ -201,7 +201,7 @@ export const publishStory = functions.https.onCall(async (data, context) => {
         author: isAnonymous ? "Anonymous Nomad" : context.auth.token.name || "A Nomad",
         avatar: isAnonymous ? "https://placehold.co/50x50.png" : context.auth.token.picture || "https://placehold.co/50x50.png",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        likes: [],
+        likes: 0,
         commentCount: 0,
     };
 
