@@ -59,16 +59,80 @@ export default function ServicesPage() {
         q = query(servicesCollection, where('status', '==', status));
       }
       
-      const serviceSnapshot = await getDocs(q);
-      const serviceList = serviceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
-      setServices(serviceList);
-      setLoading(false);
+      try {
+        const serviceSnapshot = await getDocs(q);
+        const serviceList = serviceSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        setServices(serviceList);
+      } catch (error) {
+        console.error(`Error fetching ${activeTab} services:`, error);
+        setServices([]);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchServices();
   }, [activeTab]);
 
 
-  const renderTable = (data: Service[]) => {
+  const renderTableContent = () => {
+    if (loading) {
+      return (
+          Array.from({length: 3}).map((_, i) => (
+              <TableRow key={i} className="border-slate-800">
+                  <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                  <TableCell className="text-right space-x-2">
+                      <Skeleton className="h-8 w-8 inline-block rounded" />
+                      <Skeleton className="h-8 w-8 inline-block rounded" />
+                      <Skeleton className="h-8 w-8 inline-block rounded" />
+                  </TableCell>
+              </TableRow>
+          ))
+      )
+    }
+
+    if (services.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6} className="h-24 text-center">
+            No services found for this category.
+          </TableCell>
+        </TableRow>
+      )
+    }
+
+    return (
+        services.map((service) => (
+        <TableRow key={service.id} className="border-slate-800 hover:bg-slate-900/50">
+            <TableCell className="font-medium">{service.title}</TableCell>
+            <TableCell>{service.creator}</TableCell>
+            <TableCell>{service.category}</TableCell>
+            <TableCell>${service.price.toFixed(2)}</TableCell>
+            <TableCell>
+            <Badge className={cn('font-semibold border-none', getStatusClass(service.status))}>
+                {service.status}
+            </Badge>
+            </TableCell>
+            <TableCell className="text-right space-x-2">
+                <Button variant="outline" size="icon" className="border-slate-600 hover:bg-slate-800">
+                    <Eye className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="border-green-500/50 text-green-400 hover:bg-green-500/20">
+                    <Check className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" className="border-red-500/50 text-red-400 hover:bg-red-500/20">
+                    <X className="h-4 w-4" />
+                </Button>
+            </TableCell>
+        </TableRow>
+        ))
+    )
+  }
+
+  const renderTable = () => {
     return (
         <Table>
           <TableHeader>
@@ -82,47 +146,7 @@ export default function ServicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-                Array.from({length: 3}).map((_, i) => (
-                    <TableRow key={i} className="border-slate-800">
-                        <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                        <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
-                        <TableCell className="text-right space-x-2">
-                            <Skeleton className="h-8 w-8 inline-block rounded" />
-                            <Skeleton className="h-8 w-8 inline-block rounded" />
-                            <Skeleton className="h-8 w-8 inline-block rounded" />
-                        </TableCell>
-                    </TableRow>
-                ))
-            ) : (
-                data.map((service) => (
-                <TableRow key={service.id} className="border-slate-800 hover:bg-slate-900/50">
-                    <TableCell className="font-medium">{service.title}</TableCell>
-                    <TableCell>{service.creator}</TableCell>
-                    <TableCell>{service.category}</TableCell>
-                    <TableCell>${service.price.toFixed(2)}</TableCell>
-                    <TableCell>
-                    <Badge className={cn('font-semibold border-none', getStatusClass(service.status))}>
-                        {service.status}
-                    </Badge>
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                        <Button variant="outline" size="icon" className="border-slate-600 hover:bg-slate-800">
-                            <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" className="border-green-500/50 text-green-400 hover:bg-green-500/20">
-                            <Check className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" className="border-red-500/50 text-red-400 hover:bg-red-500/20">
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </TableCell>
-                </TableRow>
-                ))
-            )}
+            {renderTableContent()}
           </TableBody>
         </Table>
     )
@@ -149,10 +173,10 @@ export default function ServicesPage() {
                 <TabsTrigger value="rejected">Rejected</TabsTrigger>
                 <TabsTrigger value="all">All</TabsTrigger>
               </TabsList>
-              <TabsContent value="pending" className="mt-4">{renderTable(services)}</TabsContent>
-              <TabsContent value="approved" className="mt-4">{renderTable(services)}</TabsContent>
-              <TabsContent value="rejected" className="mt-4">{renderTable(services)}</TabsContent>
-              <TabsContent value="all" className="mt-4">{renderTable(services)}</TabsContent>
+              <TabsContent value="pending" className="mt-4">{renderTable()}</TabsContent>
+              <TabsContent value="approved" className="mt-4">{renderTable()}</TabsContent>
+              <TabsContent value="rejected" className="mt-4">{renderTable()}</TabsContent>
+              <TabsContent value="all" className="mt-4">{renderTable()}</TabsContent>
             </Tabs>
          </CardContent>
        </Card>
