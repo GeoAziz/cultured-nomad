@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Attempting login with:', { email });
+    console.log(`Attempting login with email: ${email}`);
     setLoading(true);
     setError(null);
     try {
@@ -44,7 +44,6 @@ export default function LoginPage() {
       console.error('Login exception caught:', err);
       setError(err.message || 'An unexpected error occurred.');
     } finally {
-      console.log('Login attempt finished');
       setLoading(false);
     }
   };
