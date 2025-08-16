@@ -138,19 +138,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     callbacks: { onSuccess: (role: UserRole) => void; onError: (msg: string) => void }
   ) => {
     try {
-      console.log('Starting auth process...', { email });
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass)
-        .catch(error => {
-          console.error('Firebase auth error:', {
-            code: error.code,
-            message: error.message,
-            fullError: error
-          });
-          throw error;
-        });
-
-      console.log('Auth successful, fetching user doc...');
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
@@ -165,10 +153,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
-      console.error("Login function error:", error);
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
-    } finally {
-      setLoading(false);
     }
   };
 

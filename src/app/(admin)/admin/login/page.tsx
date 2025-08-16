@@ -25,26 +25,23 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    try {
-      await login(email, password, {
-        onSuccess: (role) => {
-          toast({ title: 'Authorization successful.' });
-          if (role === 'admin') {
-            router.push('/admin/dashboard');
-          } else {
-            // This case should ideally not be hit due to login logic, but as a fallback:
-            router.push('/dashboard');
-          }
-        },
-        onError: (err) => {
-          setError(err);
+    
+    await login(email, password, {
+      onSuccess: (role) => {
+        toast({ title: 'Authorization successful.' });
+        if (role === 'admin') {
+          router.push('/admin/dashboard');
+        } else {
+          // This case should ideally not be hit due to login logic, but as a fallback:
+          setError("You do not have administrative privileges.");
+          setLoading(false);
         }
-      });
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
-    } finally {
+      },
+      onError: (err) => {
+        setError(err);
         setLoading(false);
-    }
+      }
+    });
   };
 
   return (

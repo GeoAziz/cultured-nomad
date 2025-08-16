@@ -27,31 +27,22 @@ export default function LoginPage() {
       return;
     }
     
-    console.log('Attempting login with:', { email });
     setLoading(true);
     setError(null);
     
-    try {
-      await login(email, password, {
-        onSuccess: (role) => {
-          console.log('Login successful. User role:', role);
-          if (role === 'admin') {
-            router.push('/admin/dashboard');
-          } else {
-            router.push('/dashboard');
-          }
-        },
-        onError: (err) => {
-          console.error('Login error:', err);
-          setError(err);
-        },
-      });
-    } catch (err: any) {
-      console.error('Login exception:', err);
-      setError(err?.message || 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
+    await login(email, password, {
+      onSuccess: (role) => {
+        if (role === 'admin') {
+          router.push('/admin/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
+      },
+      onError: (err) => {
+        setError(err);
+        setLoading(false);
+      },
+    });
   };
 
   return (
