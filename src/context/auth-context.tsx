@@ -6,10 +6,8 @@ import {
   useEffect,
   createContext,
   ReactNode,
-  useContext,
 } from 'react';
 import {
-  getAuth,
   onAuthStateChanged,
   User,
   signInWithEmailAndPassword,
@@ -18,9 +16,8 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-import { app, auth, db } from '@/lib/firebase/firebase_config';
-import { useRouter } from 'next/navigation';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase/firebase_config';
 
 export interface UserProfile {
     uid: string;
@@ -60,41 +57,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Setting up auth state listener...');
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', user ? 'User authenticated' : 'No user');
-      if (user) {
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            console.log('User data loaded:', { role: userData.role });
-             // Sync Firestore data with Auth profile
-            if (user.displayName !== userData.name || user.photoURL !== userData.avatar) {
-              await updateProfile(user, { displayName: userData.name, photoURL: userData.avatar });
-              console.log('Firebase Auth profile synced with Firestore data.');
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // User is signed in, fetch their profile from Firestore
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+            const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
+            
+            // Sync Auth object with Firestore data if needed
+            if (firebaseUser.displayName !== userProfile.name || firebaseUser.photoURL !== userProfile.avatar) {
+                await updateProfile(firebaseUser, { 
+                    displayName: userProfile.name, 
+                    photoURL: userProfile.avatar 
+                });
             }
-            setUser({ uid: user.uid, ...userData } as UserProfile);
-          } else {
-            console.warn('No user document found for authenticated user');
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+            
+            setUser(userProfile);
+        } else {
+          // This case can happen if a user is deleted from Firestore but not Auth.
+          // Treat them as logged out.
           setUser(null);
+          await signOut(auth);
         }
       } else {
-        console.log('No authenticated user');
+        // User is signed out
         setUser(null);
       }
       setLoading(false);
     });
 
-    return () => {
-      console.log('Cleaning up auth state listener');
-      unsubscribe();
-    };
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
   const login = async (
@@ -103,47 +97,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     callbacks: { onSuccess: (role: string) => void; onError: (msg: string) => void }
   ) => {
     try {
-      console.log('Starting auth process...', { email });
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass)
-        .catch(error => {
-          console.error('Firebase auth error:', {
-            code: error.code,
-            message: error.message,
-            fullError: error
-          });
-          throw error;
-        });
-
-      console.log('Auth successful, fetching user doc...');
-      
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      // onAuthStateChanged will handle setting the user state.
+      // We just need to get the role for the callback.
       const userDocRef = doc(db, 'users', userCredential.user.uid);
-      const userDoc = await getDoc(userDocRef)
-        .catch(error => {
-          console.error('Firestore error:', {
-            code: error.code,
-            message: error.message,
-            fullError: error
-          });
-          throw error;
-        });
-
+      const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
-        const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
-        console.log('User profile found:', { role: userProfile.role });
-        setUser(userProfile);
-        callbacks.onSuccess(userProfile.role);
+        callbacks.onSuccess(userDoc.data().role);
       } else {
-        console.error('No user document found for uid:', userCredential.user.uid);
-        await signOut(auth);
-        callbacks.onError('User profile not found. Please contact support.');
+        // This is a failsafe, onAuthStateChanged should handle this.
+        throw new Error("User profile not found in database.");
       }
     } catch (error: any) {
-      console.error('Login error caught:', {
-        code: error.code,
-        message: error.message,
-        fullError: error
-      });
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
     }
   };
@@ -160,23 +125,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
           await updateProfile(newUser, { displayName: name });
 
-          // Create user document in Firestore
-          const userDocRef = doc(db, 'users', newUser.uid);
-          const newUserProfile: Omit<UserProfile, 'uid' | 'role'> & {uid: string, role: string, bio: string, interests: string[], joinedAt: Date, isMentor: boolean} = {
-              uid: newUser.uid,
-              name,
-              email,
-              role: 'member', // default role
-              avatar: `https://placehold.co/150x150.png`,
-              bio: "New member of the Cultured Nomads sisterhood!",
-              interests: [],
-              joinedAt: new Date(),
-              isMentor: false,
-          };
-          await setDoc(userDocRef, newUserProfile);
-          setUser(newUserProfile as UserProfile);
-
-
+          // The user document is now created by the `assignUserRole` cloud function.
+          // We don't need to set it here on the client.
+          // onAuthStateChanged will pick up the new user and their profile.
+          
           callbacks.onSuccess();
       } catch (error: any) {
           callbacks.onError(getFirebaseAuthErrorMessage(error.code));
@@ -196,8 +148,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
-    setUser(null);
     await signOut(auth);
+    // onAuthStateChanged will handle setting user to null
   };
 
   const value = {
