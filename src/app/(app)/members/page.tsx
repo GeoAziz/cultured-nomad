@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { collection, getDocs, query, where, getFirestore } from 'firebase/firestore';
+import { collection, getDocs, getFirestore } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,7 +50,7 @@ interface Member {
     id: string;
     name: string;
     avatar: string;
-    industry: string;
+    industry?: string;
     role: string;
     dataAiHint?: string;
 }
@@ -62,6 +62,7 @@ export default function MembersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [industry, setIndustry] = useState('all');
   const [role, setRole] = useState('all');
+  const [industries, setIndustries] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -70,6 +71,10 @@ export default function MembersPage() {
         const membersCollection = collection(db, 'users');
         const memberSnapshot = await getDocs(membersCollection);
         const memberList = memberSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Member));
+        
+        const uniqueIndustries = [...new Set(memberList.map(m => m.industry).filter(Boolean) as string[])];
+        setIndustries(uniqueIndustries);
+        
         setMembers(memberList);
         setFilteredMembers(memberList);
         setLoading(false);
@@ -113,12 +118,9 @@ export default function MembersPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Industries</SelectItem>
-              <SelectItem value="Tech">Tech</SelectItem>
-              <SelectItem value="Fintech">Fintech</SelectItem>
-              <SelectItem value="Creative">Creative</SelectItem>
-              <SelectItem value="Healthcare">Healthcare</SelectItem>
-              <SelectItem value="AI/ML">AI/ML</SelectItem>
-              <SelectItem value="Fashion">Fashion</SelectItem>
+              {industries.map(ind => (
+                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={role} onValueChange={setRole}>
