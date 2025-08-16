@@ -1,137 +1,122 @@
-// scripts/seed.mjs
-import admin from 'firebase-admin';
-import { faker } from '@faker-js/faker';
-import serviceAccount from '../serviceAccountKey.json' assert { type: 'json' };
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-import 'dotenv/config';
 
-// Initialize Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import {faker} from '@faker-js/faker';
+
+// The service account key is now imported from the root directory.
+import serviceAccount from '../serviceAccountKey.json' with { type: 'json' };
+
+// --- INITIALIZATION ---
+const app = initializeApp({
+  credential: cert(serviceAccount),
+  projectId: serviceAccount.project_id,
 });
 
-const db = getFirestore();
-const auth = getAuth();
-const defaultPassword = 'password123';
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-const seedCollection = async (collectionName, data) => {
-  console.log(`Seeding ${collectionName}...`);
-  for (const item of data) {
+// --- CONFIGURATION ---
+const DEFAULT_PASSWORD = 'password123';
+const USERS_TO_CREATE = {
+    admins: 2,
+    mentors: 3,
+    members: 5,
+};
+
+// --- HELPER FUNCTIONS ---
+
+const createCulturedNomadUser = async (role, isMentor = false) => {
+    const name = faker.person.fullName();
+    const email = faker.internet.email({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] });
+    const avatar = `https://placehold.co/150x150.png`;
+    const industry = faker.person.jobArea();
+    
     try {
-      // 1. Create the user in Firebase Authentication
-      const userRecord = await auth.createUser({
-        email: item.email,
-        emailVerified: true,
-        password: defaultPassword,
-        displayName: item.name,
-        photoURL: item.avatar,
-        disabled: false,
-      });
+        console.log(`Creating user: ${email} with role: ${role}`);
 
-      console.log(`Successfully created new user: ${item.name} (${userRecord.uid})`);
-
-      // 2. Create the user document in Firestore, using the UID from Auth
-      const docRef = db.collection(collectionName).doc(userRecord.uid);
-      await docRef.set({
-        ...item,
-        uid: userRecord.uid, // Ensure UID is stored in Firestore
-        joinedAt: new Date(),
-      });
-
-    } catch (error) {
-      if (error.code === 'auth/email-already-exists') {
-        console.log(`Skipping: User with email ${item.email} already exists.`);
-      } else {
-        console.error(`Error creating user ${item.name}:`, error);
-      }
-    }
-  }
-  console.log(`Seeding for ${collectionName} complete.`);
-};
-
-const createUsers = () => {
-  const roles = ['admin', 'mentor', 'member'];
-  const userCounts = { admin: 2, mentor: 3, member: 5 };
-  const users = [];
-
-  roles.forEach(role => {
-    for (let i = 0; i < userCounts[role]; i++) {
-        const name = faker.person.fullName();
-        users.push({
-            name: name,
-            email: faker.internet.email({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }),
-            avatar: faker.image.avatar(),
-            role: role,
-            bio: faker.person.bio(),
-            interests: [faker.word.noun(), faker.word.noun(), faker.word.noun()],
-            isMentor: role === 'mentor',
-            industry: faker.person.jobArea(),
+        // 1. Create user in Firebase Authentication
+        const userRecord = await auth.createUser({
+            email,
+            emailVerified: true,
+            password: DEFAULT_PASSWORD,
+            displayName: name,
+            photoURL: avatar,
+            disabled: false,
         });
+
+        const uid = userRecord.uid;
+
+        // 2. Create user profile in Firestore
+        const userDocRef = db.collection('users').doc(uid);
+        await userDocRef.set({
+            uid,
+            name,
+            email,
+            avatar,
+            role,
+            bio: faker.person.bio(),
+            industry: industry,
+            interests: [faker.person.jobType(), faker.person.jobType()],
+            isMentor,
+            joinedAt: new Date(),
+        });
+
+        console.log(`Successfully created user ${uid} (${email})`);
+        return { uid, email, role };
+    } catch (error) {
+        console.error(`Error creating ${role} user ${email}:`, error.message);
+        // Re-throw the error to be caught by Promise.all
+        throw error;
     }
-  });
-  return users;
 };
 
-const createEvents = () => {
-  const events = [];
-  for (let i = 0; i < 5; i++) {
-    events.push({
-      title: faker.company.catchPhrase(),
-      date: faker.date.future(),
-      type: faker.helpers.arrayElement(['Workshop', 'Mixer', 'Fireside Chat']),
-      host: faker.person.fullName(),
-      image: `https://placehold.co/600x400.png`,
-      dataAiHint: 'conference event'
-    });
-  }
-  return events;
-};
 
-const createStories = () => {
-  const stories = [];
-  const moods = ['Wins', 'Fails', 'Lessons', 'Real Talk'];
-  for (let i = 0; i < 10; i++) {
-     const isAnon = faker.datatype.boolean();
-     stories.push({
-      title: faker.lorem.sentence(5),
-      content: faker.lorem.paragraphs(3),
-      excerpt: faker.lorem.paragraph(),
-      tags: [faker.lorem.word(), faker.lorem.word()],
-      mood: faker.helpers.arrayElement(moods),
-      isAnonymous: isAnon,
-      userId: faker.string.uuid(),
-      author: isAnon ? "Anonymous Nomad" : faker.person.fullName(),
-      avatar: isAnon ? "https://placehold.co/50x50.png" : faker.image.avatar(),
-      createdAt: new Date(),
-      likes: faker.number.int({ min: 0, max: 150 }),
-      commentCount: faker.number.int({ min: 0, max: 20 }),
-     })
-  }
-  return stories;
-}
+// --- MAIN SEEDING LOGIC ---
 
 const seedDatabase = async () => {
-  console.log('Starting database seed...');
-  
-  const usersToSeed = createUsers();
-  const eventsToSeed = createEvents();
-  const storiesToSeed = createStories();
+    console.log('--- Starting database seed ---');
 
-  await seedCollection('users', usersToSeed);
-  await seedCollection('events', eventsToSeed);
-  await seedCollection('stories', storiesToSeed);
+    const creationPromises = [];
 
-  console.log('---------------------------------');
-  console.log('Database seeding finished!');
-  console.log('You can now log in with the following credentials:');
-  console.log('Default Password for all users:', defaultPassword);
-  console.log('---------------------------------');
-  process.exit(0);
+    // Create Admins
+    for (let i = 0; i < USERS_TO_CREATE.admins; i++) {
+        creationPromises.push(createCulturedNomadUser('admin'));
+    }
+
+    // Create Mentors
+    for (let i = 0; i < USERS_TO_CREATE.mentors; i++) {
+        creationPromises.push(createCulturedNomadUser('mentor', true));
+    }
+
+    // Create Members
+    for (let i = 0; i < USERS_TO_CREATE.members; i++) {
+        creationPromises.push(createCulturedNomadUser('member'));
+    }
+
+    try {
+        const results = await Promise.all(creationPromises);
+        console.log('\n--- Seeding finished successfully! ---');
+        console.log(`${results.length} users created in total.`);
+        console.log(`\nDefault password for all users: ${DEFAULT_PASSWORD}`);
+        
+        // You can find the full list of created users with their roles in credentials.md
+        // For quick access, here are some created emails:
+        const admins = results.filter(u => u.role === 'admin');
+        const mentors = results.filter(u => u.role === 'mentor');
+        const members = results.filter(u => u.role === 'member');
+        
+        if (admins.length > 0) console.log(`\nAdmin example: ${admins[0].email}`);
+        if (mentors.length > 0) console.log(`Mentor example: ${mentors[0].email}`);
+        if (members.length > 0) console.log(`Member example: ${members[0].email}`);
+
+    } catch (error) {
+        console.error('\n--- Seeding failed! ---');
+        console.error('An error occurred during the seeding process. Not all users may have been created.', error.message);
+        process.exit(1); // Exit with error code
+    }
 };
 
-seedDatabase().catch(error => {
-  console.error('Seeding failed:', error);
-  process.exit(1);
+seedDatabase().then(() => {
+    process.exit(0); // Exit successfully
 });

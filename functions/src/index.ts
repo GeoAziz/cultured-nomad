@@ -12,8 +12,10 @@ const db = admin.firestore();
  * This will NOT run for users created via the Admin SDK (e.g. seeding script).
  */
 export const assignUserRole = functions.auth.user().onCreate(async (user) => {
-  // Check if the user was created by an admin
-  if (user.providerData.length === 0) { // No provider indicates creation via email/password
+  // Check if the user was created by an admin by checking for provider data.
+  // Client-side signups (email/password) will have a 'password' provider.
+  // Admin SDK created users will have an empty providerData array.
+  if (user.providerData.some(p => p.providerId === 'password')) {
       const { uid, email, displayName, photoURL } = user;
       const userRef = db.collection("users").doc(uid);
 
@@ -99,7 +101,6 @@ export const sendMessage = functions.https.onCall(async (data, context) => {
         content: messageContent, // Basic sanitization should be handled on client/server
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         read: false,
-        attachmentUrl: attachmentUrl || null,
         participants: [from, to].sort() // For easier querying
     };
 
