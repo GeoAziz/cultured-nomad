@@ -103,6 +103,19 @@ export default function WellnessPage() {
         handleLogMood('Win', winOfTheDay);
     };
 
+    const handleSaveJournal = () => {
+        setLoading(prev => ({ ...prev, journal: true }));
+        // Simulate API call
+        setTimeout(() => {
+            toast({
+                title: "Journal Entry Saved",
+                description: "Your thoughts have been recorded."
+            });
+            setJournalEntry('');
+            setLoading(prev => ({ ...prev, journal: false }));
+        }, 1000)
+    }
+
     return (
         <div className="space-y-8">
             <PageHeader title="Wellness Corner" description="Nourish your mind. Celebrate your journey." />
@@ -177,8 +190,11 @@ export default function WellnessPage() {
                                 className="flex-1 bg-card/50"
                                 value={journalEntry}
                                 onChange={(e) => setJournalEntry(e.target.value)}
+                                disabled={loading['journal']}
                             />
-                           <Button className="glow-button-accent mt-4 self-end">Save Entry</Button>
+                           <Button className="glow-button-accent mt-4 self-end" onClick={handleSaveJournal} disabled={loading['journal']}>
+                             {loading['journal'] ? <Loader2 className="animate-spin" /> : 'Save Entry'}
+                           </Button>
                         </CardContent>
                     </Card>
                 </motion.div>
