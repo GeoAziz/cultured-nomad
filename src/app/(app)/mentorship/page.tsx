@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { motion } from 'framer-motion';
-import { Star, Wand2 } from 'lucide-react';
+import { Star, Wand2, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -16,11 +17,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog"
+import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { collection, getDocs, query, where, getFirestore } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -62,6 +69,11 @@ export default function MentorshipPage() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [matchOfTheWeek, setMatchOfTheWeek] = useState<Mentor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
+
 
   useEffect(() => {
     const fetchMentors = async () => {
@@ -80,6 +92,27 @@ export default function MentorshipPage() {
 
     fetchMentors();
   }, []);
+
+  const handleRequestMentorship = async (mentorId: string) => {
+    if (!requestMessage.trim()) {
+        toast({ title: "Message is required", description: "Please write a short message to your potential mentor.", variant: 'destructive' });
+        return;
+    }
+    setIsSubmitting(true);
+    try {
+        const functions = getFunctions(app);
+        const requestMentorship = httpsCallable(functions, 'requestMentorship');
+        await requestMentorship({ mentorId, message: requestMessage });
+        toast({ title: "Request Sent!", description: "Your mentorship request has been sent. You'll be notified when they respond." });
+        setRequestMessage('');
+    } catch(error: any) {
+        console.error("Error requesting mentorship", error);
+        toast({ title: "Error", description: error.message || "Something went wrong.", variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
 
   return (
     <div className="space-y-12">
@@ -110,19 +143,35 @@ export default function MentorshipPage() {
                 <p className="mt-4">{matchOfTheWeek.bio}</p>
                 <Dialog>
                     <DialogTrigger asChild>
-                        <Button className="glow-button mt-6 w-fit">
+                        <Button className="glow-button mt-6 w-fit" disabled={user?.role === 'mentor'}>
                             <Wand2 className="mr-2 h-4 w-4" />
-                            Book a Mission Briefing
+                            Request Mentorship
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px] glass-card">
+                    <DialogContent className="sm:max-w-[480px]">
                         <DialogHeader>
-                        <DialogTitle className="font-headline text-2xl text-primary">Mission Briefing: Sync with {matchOfTheWeek.name}</DialogTitle>
+                        <DialogTitle className="font-headline text-2xl text-primary">Request Mentorship with {matchOfTheWeek.name}</DialogTitle>
                         <DialogDescription>
-                            Select a time to connect and outline your goals. This is the first step to unlocking your potential.
+                            Send a message to introduce yourself and what you're looking for in a mentor.
                         </DialogDescription>
                         </DialogHeader>
-                        <p className="text-center py-8">Calendar booking UI would go here.</p>
+                        <div className="py-4">
+                            <Textarea 
+                                placeholder="Hi! I'm looking for guidance on..."
+                                value={requestMessage}
+                                onChange={e => setRequestMessage(e.target.value)}
+                                className="min-h-[120px]"
+                            />
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary">Cancel</Button>
+                            </DialogClose>
+                            <Button onClick={() => handleRequestMentorship(matchOfTheWeek.id)} disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Send Request
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
                 </div>
@@ -203,3 +252,5 @@ export default function MentorshipPage() {
     </div>
   );
 }
+
+    
