@@ -297,3 +297,5 @@ export const getDailyPrompt = functions.https.onCall((data, context) => {
 
     return { prompt };
 });
+
+    
