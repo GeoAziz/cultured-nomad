@@ -1,137 +1,137 @@
-
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+// scripts/seed.mjs
+import admin from 'firebase-admin';
 import { faker } from '@faker-js/faker';
-import serviceAccount from './serviceAccountKey.json' assert { type: 'json' };
+import serviceAccount from '../serviceAccountKey.json' assert { type: 'json' };
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import 'dotenv/config';
 
-// --- CONFIGURATION ---
-const BATCH_SIZE = 10; // Number of users to create per batch
-const USERS_TO_CREATE = {
-  admin: 2,
-  mentor: 3,
-  member: 5,
-};
-
-// --- INITIALIZE FIREBASE ADMIN ---
-initializeApp({
-  credential: cert(serviceAccount),
-  databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`,
+// Initialize Firebase Admin SDK
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
 });
 
-const auth = getAuth();
 const db = getFirestore();
-
-// --- HELPER FUNCTIONS ---
-
+const auth = getAuth();
 const defaultPassword = 'password123';
 
-const industries = ['Tech', 'Fintech', 'Creative', 'Healthcare', 'AI/ML', 'Fashion'];
-const roles = ['Mentor', 'Techie', 'Seeker', 'Member']; // Expanded roles
-const interests = ['Web3', 'AI Ethics', 'VR/AR', 'Sustainable Tech', 'UX Design'];
-const getRole = (type) => {
-    switch (type) {
-        case 'admin': return 'admin';
-        case 'mentor': return 'mentor';
-        default: return faker.helpers.arrayElement(['member', 'techie', 'seeker']);
-    }
-}
+const seedCollection = async (collectionName, data) => {
+  console.log(`Seeding ${collectionName}...`);
+  for (const item of data) {
+    try {
+      // 1. Create the user in Firebase Authentication
+      const userRecord = await auth.createUser({
+        email: item.email,
+        emailVerified: true,
+        password: defaultPassword,
+        displayName: item.name,
+        photoURL: item.avatar,
+        disabled: false,
+      });
 
-/**
- * Creates a user in both Firebase Auth and Firestore.
- * @param {object} userData - The user data to create.
- * @returns {Promise<void>}
- */
-async function createUser(userData) {
-  const { email, name, role, isMentor } = userData;
-  console.log(`Creating user: ${name} (${email}) with role ${role}`);
-  try {
-    // 1. Create user in Firebase Authentication
-    const userRecord = await auth.createUser({
-      email,
-      emailVerified: true,
-      password: defaultPassword,
-      displayName: name,
-      photoURL: `https://placehold.co/150x150.png?text=${name.charAt(0)}`,
-    });
-    console.log(`Successfully created Auth user: ${userRecord.uid}`);
+      console.log(`Successfully created new user: ${item.name} (${userRecord.uid})`);
 
-    // 2. Create user document in Firestore
-    const userDocRef = db.collection('users').doc(userRecord.uid);
-    await userDocRef.set({
-      uid: userRecord.uid,
-      name,
-      email,
-      role,
-      isMentor: !!isMentor,
-      avatar: userRecord.photoURL,
-      industry: faker.helpers.arrayElement(industries),
-      bio: `A passionate ${role} in the ${industries[Math.floor(Math.random() * industries.length)]} space. Eager to connect and grow with the sisterhood!`,
-      interests: faker.helpers.arrayElements(interests, 3),
-      joinedAt: new Date(),
-      banner: 'https://placehold.co/1200x400.png',
-      dataAiHint: 'woman portrait'
-    });
-    console.log(`Successfully created Firestore doc for: ${name}`);
-  } catch (error) {
-    if (error.code === 'auth/email-already-exists') {
-        console.warn(`User with email ${email} already exists. Skipping.`);
-    } else {
-        console.error('Error creating user:', name, error);
+      // 2. Create the user document in Firestore, using the UID from Auth
+      const docRef = db.collection(collectionName).doc(userRecord.uid);
+      await docRef.set({
+        ...item,
+        uid: userRecord.uid, // Ensure UID is stored in Firestore
+        joinedAt: new Date(),
+      });
+
+    } catch (error) {
+      if (error.code === 'auth/email-already-exists') {
+        console.log(`Skipping: User with email ${item.email} already exists.`);
+      } else {
+        console.error(`Error creating user ${item.name}:`, error);
+      }
     }
   }
+  console.log(`Seeding for ${collectionName} complete.`);
+};
+
+const createUsers = () => {
+  const roles = ['admin', 'mentor', 'member'];
+  const userCounts = { admin: 2, mentor: 3, member: 5 };
+  const users = [];
+
+  roles.forEach(role => {
+    for (let i = 0; i < userCounts[role]; i++) {
+        const name = faker.person.fullName();
+        users.push({
+            name: name,
+            email: faker.internet.email({ firstName: name.split(' ')[0], lastName: name.split(' ')[1] }),
+            avatar: faker.image.avatar(),
+            role: role,
+            bio: faker.person.bio(),
+            interests: [faker.word.noun(), faker.word.noun(), faker.word.noun()],
+            isMentor: role === 'mentor',
+            industry: faker.person.jobArea(),
+        });
+    }
+  });
+  return users;
+};
+
+const createEvents = () => {
+  const events = [];
+  for (let i = 0; i < 5; i++) {
+    events.push({
+      title: faker.company.catchPhrase(),
+      date: faker.date.future(),
+      type: faker.helpers.arrayElement(['Workshop', 'Mixer', 'Fireside Chat']),
+      host: faker.person.fullName(),
+      image: `https://placehold.co/600x400.png`,
+      dataAiHint: 'conference event'
+    });
+  }
+  return events;
+};
+
+const createStories = () => {
+  const stories = [];
+  const moods = ['Wins', 'Fails', 'Lessons', 'Real Talk'];
+  for (let i = 0; i < 10; i++) {
+     const isAnon = faker.datatype.boolean();
+     stories.push({
+      title: faker.lorem.sentence(5),
+      content: faker.lorem.paragraphs(3),
+      excerpt: faker.lorem.paragraph(),
+      tags: [faker.lorem.word(), faker.lorem.word()],
+      mood: faker.helpers.arrayElement(moods),
+      isAnonymous: isAnon,
+      userId: faker.string.uuid(),
+      author: isAnon ? "Anonymous Nomad" : faker.person.fullName(),
+      avatar: isAnon ? "https://placehold.co/50x50.png" : faker.image.avatar(),
+      createdAt: new Date(),
+      likes: faker.number.int({ min: 0, max: 150 }),
+      commentCount: faker.number.int({ min: 0, max: 20 }),
+     })
+  }
+  return stories;
 }
 
-// --- MAIN SEEDING LOGIC ---
-
-async function seedDatabase() {
-  console.log('--- Starting database seed ---');
-
-  const allUsers = [];
-
-  // Generate Admins
-  for (let i = 0; i < USERS_TO_CREATE.admin; i++) {
-    allUsers.push({
-      name: faker.person.fullName(),
-      email: faker.internet.email({firstName: 'Admin'}).toLowerCase(),
-      role: 'admin',
-      isMentor: false,
-    });
-  }
-
-  // Generate Mentors
-  for (let i = 0; i < USERS_TO_CREATE.mentor; i++) {
-    allUsers.push({
-      name: faker.person.fullName(),
-      email: faker.internet.email().toLowerCase(),
-      role: 'mentor',
-      isMentor: true,
-    });
-  }
-
-  // Generate Members
-  for (let i = 0; i < USERS_TO_CREATE.member; i++) {
-    allUsers.push({
-      name: faker.person.fullName(),
-      email: faker.internet.email().toLowerCase(),
-      role: getRole('member'),
-      isMentor: false,
-    });
-  }
+const seedDatabase = async () => {
+  console.log('Starting database seed...');
   
-  console.log(`Generated ${allUsers.length} total users. Now creating in batches...`);
-  
-  // Create users in batches
-  for (let i = 0; i < allUsers.length; i += BATCH_SIZE) {
-    const batch = allUsers.slice(i, i + BATCH_SIZE);
-    console.log(`--- Processing batch ${i / BATCH_SIZE + 1} ---`);
-    await Promise.all(batch.map(user => createUser(user)));
-  }
+  const usersToSeed = createUsers();
+  const eventsToSeed = createEvents();
+  const storiesToSeed = createStories();
 
-  console.log('--- Database seeding complete! ---');
-  console.log(`\nDefault password for all users is: ${defaultPassword}\n`);
-}
+  await seedCollection('users', usersToSeed);
+  await seedCollection('events', eventsToSeed);
+  await seedCollection('stories', storiesToSeed);
+
+  console.log('---------------------------------');
+  console.log('Database seeding finished!');
+  console.log('You can now log in with the following credentials:');
+  console.log('Default Password for all users:', defaultPassword);
+  console.log('---------------------------------');
+  process.exit(0);
+};
 
 seedDatabase().catch(error => {
-  console.error('An unexpected error occurred during seeding:', error);
+  console.error('Seeding failed:', error);
+  process.exit(1);
 });
