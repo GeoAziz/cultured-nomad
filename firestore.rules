@@ -3,76 +3,101 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isSignedIn() {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
       return request.auth != null;
     }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
     
-    function isMentor() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'mentor';
-    }
-
+    // Helper function to check if user is an admin
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users: Can be read by anyone who is signed in
+    // --- Users Collection ---
+    // Anyone authenticated can view user profiles.
+    // A user can only create/update their own profile.
+    // Admins can do anything.
     match /users/{userId} {
-      allow read: if isSignedIn();  // Allow all authenticated users to read user documents
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId);  // Only allow users to update their own documents for now
-      allow delete: if false;  // Disable deletion for safety
-    }
-
-    // Events: Publicly readable, but only writeable by mentors or admins.
-    match /events/{eventId} {
-      allow read: if true;
-      allow create, update, delete: if isMentor() || isAdmin();
-    }
-
-    // Event RSVPs: Can be read by anyone, but only created/deleted by the authenticated user.
-    match /event_rsvps/{rsvpId} {
-      allow read: if isSignedIn();
-      allow create, delete: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if false; // RSVPs shouldn't be updated, only created/deleted
-    }
-
-    // Stories: Publicly readable, writeable only by the author.
-    match /stories/{storyId} {
-      allow read: if true;
-      allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isOwner(request.resource.data.userId) || isAdmin();
-    }
-
-    // Mentorships: Only involved parties (user/mentor) or admins can access.
-    match /mentorships/{mentorshipId} {
-      allow read, write: if isSignedIn() && (request.auth.uid in [resource.data.userId, resource.data.mentorId] || isAdmin());
-    }
-
-    // Messages: Only the sender or recipient can access.
-    match /messages/{messageId} {
-      // For queries, we check the collection. For direct access, the document.
-      allow list: if isSignedIn() && (request.auth.uid == request.query.to || request.auth.uid == request.query.from);
-      allow read, write: if isSignedIn() && (request.auth.uid in [resource.data.from, resource.data.to]);
-    }
-
-    // Notifications: Only the recipient can read/write their own notifications.
-    match /notifications/{userId}/user_notifications/{notificationId} {
-      allow read, write, delete: if isOwner(userId);
-    }
-
-    // Mood Logs: Only the owner can access their logs.
-    match /mood_logs/{userId}/logs/{logId} {
-      allow read, write, create, delete: if isOwner(userId);
+      allow read: if isAuthenticated();
+      allow create, update: if request.auth.uid == userId || isAdmin();
+      allow delete: if isAdmin();
     }
     
-    // Settings: Only the owner can access their settings.
-    match /settings/{userId} {
-       allow read, create, update, delete: if isOwner(userId);
+    // --- Stories Collection ---
+    // Anyone authenticated can read stories.
+    // A user can only create their own story.
+    // A user can only update/delete their own story, or if they are an admin.
+    match /stories/{storyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+    
+    // --- Events Collection ---
+    // All authenticated users can read events.
+    // Only admins can create, update, or delete events.
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // --- Event RSVPs ---
+    // A user can only create/delete their own RSVP.
+    match /event_rsvps/{rsvpId} {
+      allow read, create, delete: if isAuthenticated() && (rsvpId == request.auth.uid + '_' + request.resource.data.eventId || rsvpId.startsWith(request.auth.uid));
+    }
+    
+    // --- Messages Collection ---
+    // A user can only read messages if they are part of the conversation.
+    // A user can only send messages as themselves.
+    match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+        allow create: if isAuthenticated() && request.resource.data.from == request.auth.uid;
+    }
+
+    // --- Mentorships Collection ---
+    // Users can create a request.
+    // Mentors can read requests sent to them.
+    // Mentors can update the status of requests.
+    match /mentorships/{mentorshipId} {
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+        allow read, update: if isAuthenticated() && (resource.data.mentorId == request.auth.uid || resource.data.userId == request.auth.uid);
+    }
+    
+    // --- Mood Logs ---
+    // Users can only write to their own mood log subcollection.
+    match /mood_logs/{userId}/logs/{logId} {
+      allow read, create: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // --- Broadcasts ---
+    // Authenticated users can read broadcasts.
+    // Only admins can write them.
+    match /broadcasts/{broadcastId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+    }
+    
+     // --- Notifications ---
+    // Users can only access their own notifications.
+    match /notifications/{userId}/user_notifications/{notificationId} {
+      allow read, write: if isAuthenticated() && userId == request.auth.uid;
+    }
+
+    // --- Feedback ---
+    // All authenticated users can submit feedback.
+    // Only admins can read/manage feedback.
+    match /feedback/{feedbackId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if isAdmin();
+    }
+    
+    // --- Services (For Admin Panel) ---
+    // For now, only allow admins to read/write services, assuming users create them via a function.
+     match /services/{serviceId} {
+      allow read, write: if isAdmin();
+      // If users could create services directly, you would add:
+      // allow create: if isAuthenticated();
     }
   }
 }
