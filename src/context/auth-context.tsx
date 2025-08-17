@@ -26,13 +26,18 @@ export interface UserProfile {
     uid: string;
     email: string | null;
     name: string | null;
-    role: UserRole;
+    role: 'member' | 'admin' | 'mentor' | 'seeker' | 'techie';
     avatar?: string;
-    banner?: string;
-    bio?: string;
+    industry?: string;
+    expertise?: string[];
     interests?: string[];
-    dataAiHint?: string;
-    dataAiHintBanner?: string;
+    joinedAt?: Date;
+    lastActive?: Date;
+    preferences?: {
+      notifications: boolean;
+      emailUpdates: boolean;
+      visibility: 'public' | 'private';
+    };
 }
 
 export interface AuthContextType {
