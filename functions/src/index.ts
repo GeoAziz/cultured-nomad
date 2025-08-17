@@ -269,7 +269,7 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth?.uid || null,
+        createdBy: context.auth.uid,
     });
 
     return { status: "success", message: "Broadcast created." };
@@ -278,9 +278,47 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
 /**
  * Gets statistics for the mentor dashboard.
  */
-export { getMentorDashboardStats } from './getMentorDashboardStats';
+export const getMentorDashboardStats = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    
+    const mentorId = context.auth.uid;
+    const mentorshipsRef = db.collection("mentorships");
 
-// Other existing exports and functions...
+    const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+    const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+    
+    // Query for sessions
+    const sessionsRef = db.collection("mentoring_sessions");
+    const now = admin.firestore.Timestamp.now();
+    
+    const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
+    const upcomingSessionsQuery = sessionsRef
+        .where('mentorId', '==', mentorId)
+        .where('startTime', '>', now)
+        .orderBy('startTime', 'asc');
+
+
+    const [
+        pendingSnapshot, 
+        acceptedSnapshot, 
+        totalSessionsSnapshot, 
+        upcomingSessionsSnapshot
+    ] = await Promise.all([
+        pendingQuery.get(),
+        acceptedQuery.get(),
+        totalSessionsQuery.get(),
+        upcomingSessionsSnapshot.get()
+    ]);
+
+    return {
+        pendingRequests: pendingSnapshot.size,
+        activeMentees: acceptedSnapshot.size,
+        totalSessions: totalSessionsSnapshot.size,
+        upcomingSessions: upcomingSessionsSnapshot.size
+    };
+});
 
 
 /**
