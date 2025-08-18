@@ -26,19 +26,23 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigation } from '@/hooks/use-navigation';
+import { NavigationItem } from '@/config/navigation';
 
-const baseNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['member', 'techie'] },
-  { href: '/dashboard/mentor', label: 'Dashboard', icon: LayoutDashboard, roles: ['mentor'] },
-  { href: '/dashboard/seeker', label: 'Dashboard', icon: LayoutDashboard, roles: ['seeker'] },
-  { href: '/dashboard/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
-  { href: '/members', label: 'Directory', icon: Users },
-  { href: '/connect', label: 'Connect', icon: MessageSquare, roleSpecific: true },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/stories', label: 'Stories', icon: BookOpen },
-  { href: '/wellness', label: 'Wellness', icon: Sparkles },
-  { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake },
-];
+const iconMap: Record<string, React.ElementType> = {
+  'Dashboard': LayoutDashboard,
+  'Connect': MessageSquare,
+  'Events': Calendar,
+  'Stories': BookOpen,
+  'Wellness': Sparkles,
+  'Mentorship': HeartHandshake,
+  'Directory': Users,
+  'Members': Users,
+  'Settings': Settings,
+  'Analytics': LayoutDashboard,
+  'Users': Users,
+  'Profile': CircleUserRound,
+};
 
 const bottomNavItems = [
   { href: '/profile', label: 'My Profile', icon: CircleUserRound },
@@ -50,6 +54,7 @@ export default function MainSidebar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const navigation = useNavigation();
 
   const handleLogout = () => {
     logout();
@@ -58,15 +63,6 @@ export default function MainSidebar() {
         description: "See you next time, Nomad!",
     })
   }
-
-  const getRoleSpecificPath = (basePath: string) => {
-    if (!user || !user.role || ['member', 'techie', 'admin'].includes(user.role)) {
-      return basePath;
-    }
-    return `${basePath}/${user.role}`;
-  };
-
-  const navItems = baseNavItems.filter(item => !item.roles || item.roles.includes(user?.role ?? ''));
 
   const sidebarContent = (
     <>
@@ -77,24 +73,24 @@ export default function MainSidebar() {
     </div>
     <Separator className="bg-primary/20" />
     <nav className="flex-1 px-4 py-4 space-y-2">
-      {navItems.map((item) => {
-        const href = item.roleSpecific ? getRoleSpecificPath(item.href) : item.href;
+      {navigation.map((item: NavigationItem) => {
+        const Icon = iconMap[item.name] || Settings;
         return (
-            <Link
+          <Link
             key={item.href}
-            href={href}
+            href={item.href}
             onClick={() => setMobileMenuOpen(false)}
             className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-                pathname.startsWith(href)
+              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+              pathname.startsWith(item.href)
                 ? 'bg-primary/10 text-primary text-glow'
                 : 'text-foreground/70 hover:bg-primary/5 hover:text-foreground'
             )}
-            >
-            <item.icon className="h-5 w-5" />
-            <span>{item.label}</span>
-            </Link>
-        )
+          >
+            <Icon className="h-5 w-5" />
+            <span>{item.name}</span>
+          </Link>
+        );
       })}
     </nav>
     <div className="px-4 py-4 space-y-2">
