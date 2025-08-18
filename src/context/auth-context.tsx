@@ -95,23 +95,8 @@ const getFirebaseAuthErrorMessage = (errorCode: string): string => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authInitialized, setAuthInitialized] = useState(false);
 
-  // First, wait for Firebase Auth to initialize
   useEffect(() => {
-    const waitForAuth = auth.authStateReady().then(() => {
-      console.log('[AuthProvider] Firebase Auth initialized');
-      setAuthInitialized(true);
-    });
-    return () => {
-      // No cleanup needed
-    };
-  }, []);
-
-  // Then, set up the auth state listener only after auth is ready
-  useEffect(() => {
-    if (!authInitialized) return;
-    console.log('[AuthProvider] Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -163,23 +148,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     pass: string,
     callbacks: { onSuccess: (role: UserRole) => void; onError: (msg: string) => void }
   ) => {
+    setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const userRole = userDoc.data().role || 'member';
-        callbacks.onSuccess(userRole);
+        const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
+        setUser(userProfile); // Set the full user profile immediately
+        callbacks.onSuccess(userProfile.role);
       } else {
-        // This case should not be hit if seeding is correct, but as a fallback.
-        console.warn("User authenticated but no profile found in Firestore. This is unexpected.");
         await signOut(auth);
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -203,10 +189,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             photoURL: `https://placehold.co/150x150.png` 
           });
           
-          // We manually create the profile here as well so the user doesn't have to wait 
-          // for the Cloud Function to trigger. This provides a faster UI response.
-          const userRef = doc(db, 'users', newUser.uid);
-          await setDoc(userRef, {
+          const userProfileData: UserProfile = {
              uid: newUser.uid,
              name,
              email,
@@ -214,10 +197,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
              role: "member", // Default role
              bio: bio || "New member of the Cultured Nomads sisterhood!",
              interests: interests || [],
+          };
+          
+          const userRef = doc(db, 'users', newUser.uid);
+          await setDoc(userRef, {
+             ...userProfileData,
              joinedAt: serverTimestamp(),
              isMentor: false,
           });
 
+          setUser(userProfileData);
           callbacks.onSuccess();
 
       } catch (error: any) {
@@ -252,11 +241,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signup,
     sendPasswordReset
   };
-
-  // Show nothing until Firebase Auth is initialized
-  if (!authInitialized) {
-    return null;
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
