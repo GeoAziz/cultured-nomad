@@ -27,34 +27,23 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
-const baseNavItems = [
-  { href: '/dashboard/mentor', label: 'Mentor Dashboard', icon: LayoutDashboard, roles: ['mentor'] },
-  { href: '/dashboard/seeker', label: 'Seeker Dashboard', icon: LayoutDashboard, roles: ['seeker'] },
-  { href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutDashboard, roles: ['admin'] },
-  { href: '/members', label: 'Directory', icon: Users },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/stories', label: 'Stories', icon: BookOpen },
-  { href: '/wellness', label: 'Wellness', icon: Sparkles },
-  { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake },
-];
+// Import navigation hook and types
+import { useNavigation } from '@/hooks/use-navigation';
+import { NavigationItem } from '@/config/navigation';
 
-const roleSpecificNavItems = {
-    mentor: [
-        { href: '/connect/mentor', label: 'Connect', icon: MessageSquare }
-    ],
-    seeker: [
-        { href: '/connect/seeker', label: 'Connect', icon: MessageSquare }
-    ],
-    techie: [
-        { href: '/connect', label: 'Connect', icon: MessageSquare }
-    ],
-    member: [
-        { href: '/connect', label: 'Connect', icon: MessageSquare }
-    ],
-    admin: [
-        { href: '/connect', label: 'Connect', icon: MessageSquare }
-    ]
-}
+const iconMap: Record<string, any> = {
+  'Dashboard': LayoutDashboard,
+  'Connect': MessageSquare,
+  'Events': Calendar,
+  'Stories': BookOpen,
+  'Wellness': Sparkles,
+  'Mentorship': HeartHandshake,
+  'Directory': Users,
+  'Members': Users,
+  'Settings': Settings,
+  'Analytics': LayoutDashboard,
+  'Users': Users,
+};
 
 const bottomNavItems = [
   { href: '/profile', label: 'My Profile', icon: CircleUserRound },
@@ -75,12 +64,12 @@ export default function MainSidebar() {
     })
   }
 
-  const navItems = [
-    ...baseNavItems.filter(item => !item.roles || item.roles.includes(user?.role ?? '')),
-    ...(roleSpecificNavItems[user?.role || 'member'] || [])
-  ].sort((a,b) => (baseNavItems.indexOf(a) > -1 ? baseNavItems.indexOf(a) : 99) - (baseNavItems.indexOf(b) > -1 ? baseNavItems.indexOf(b) : 99));
+  // Get the current user's role, defaulting to 'member' if not set
+  const userRole = user?.role || 'member';
+  console.log('[MainSidebar] User role:', userRole); // Debug log
 
-
+  const navigation = useNavigation();
+  
   const sidebarContent = (
     <>
     <div className="p-4">
@@ -90,22 +79,25 @@ export default function MainSidebar() {
     </div>
     <Separator className="bg-primary/20" />
     <nav className="flex-1 px-4 py-4 space-y-2">
-      {navItems.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          onClick={() => setMobileMenuOpen(false)}
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
-            pathname.startsWith(item.href)
-              ? 'bg-primary/10 text-primary text-glow'
-              : 'text-foreground/70 hover:bg-primary/5 hover:text-foreground'
-          )}
-        >
-          <item.icon className="h-5 w-5" />
-          <span>{item.label}</span>
-        </Link>
-      ))}
+      {navigation.map((item: NavigationItem) => {
+        const Icon = iconMap[item.name] || Settings;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setMobileMenuOpen(false)}
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+              pathname.startsWith(item.href)
+                ? 'bg-primary/10 text-primary text-glow'
+                : 'text-foreground/70 hover:bg-primary/5 hover:text-foreground'
+            )}
+          >
+            <Icon className="h-5 w-5" />
+            <span>{item.name}</span>
+          </Link>
+        );
+      })}
     </nav>
     <div className="px-4 py-4 space-y-2">
        <Button variant="ghost" className="w-full justify-start gap-3 px-4 py-3 text-foreground/70 hover:bg-accent/10 hover:text-accent">

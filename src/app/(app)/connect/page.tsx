@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef }from 'react';
+import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/shared/page-header';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -42,6 +43,7 @@ interface Message {
 
 export default function ConnectPage() {
     const { user } = useAuth();
+    const router = useRouter();
     const [chats, setChats] = useState<ChatUser[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
@@ -50,6 +52,20 @@ export default function ConnectPage() {
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const { toast } = useToast();
+
+    // Role-based routing
+    useEffect(() => {
+        if (user) {
+            switch (user.role) {
+                case 'mentor':
+                    router.push('/connect/mentor');
+                    return;
+                case 'seeker':
+                    router.push('/connect/seeker');
+                    return;
+            }
+        }
+    }, [user, router]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
 
