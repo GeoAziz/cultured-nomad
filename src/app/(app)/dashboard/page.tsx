@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
-import RoleBasedContent from '@/components/dashboard/RoleBasedContent';
+import DashboardContent from '@/components/dashboard/DashboardContent';
 
 
 const containerVariants = {
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         {authLoading ? (
             <Skeleton className="h-96 w-full" />
         ) : (
-             <RoleBasedContent userRole={user?.role || 'member'} />
+             <DashboardContent user={user} />
         )}
 
 
