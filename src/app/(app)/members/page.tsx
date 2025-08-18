@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -5,7 +6,7 @@ import PageHeader from '@/components/shared/page-header';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion } from 'framer-motion';
-import { Search } from 'lucide-react';
+import { Search, User, Shield, GraduationCap, Code, HeartHandshake } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -41,10 +42,19 @@ const getRoleClass = (role: string) => {
     switch(role?.toLowerCase()) {
         case 'mentor': return 'bg-primary/20 text-primary border-primary/30';
         case 'techie': return 'bg-accent/20 text-accent border-accent/30';
-        case 'seeker': return 'bg-secondary text-secondary-foreground';
+        case 'seeker': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        case 'admin': return 'bg-red-500/20 text-red-400 border-red-500/30';
         default: return 'bg-muted text-muted-foreground';
     }
 }
+
+const roleDescriptions = [
+    { role: 'Mentor', icon: GraduationCap, description: 'Experienced guides ready to share their wisdom.'},
+    { role: 'Seeker', icon: HeartHandshake, description: 'Ambitious members actively looking for guidance.'},
+    { role: 'Techie', icon: Code, description: 'Builders and innovators sharing their technical skills.'},
+    { role: 'Member', icon: User, description: 'The vibrant heart of our community.'},
+    { role: 'Admin', icon: Shield, description: 'The trusted stewards of our sisterhood.'},
+]
 
 interface Member {
     id: string;
@@ -97,6 +107,23 @@ export default function MembersPage() {
       <PageHeader title="Member Directory" description="Connect with ambitious women from every industry." />
 
       <motion.div 
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {roleDescriptions.map(item => (
+            <motion.div key={item.role} variants={itemVariants}>
+                <Card className="glass-card text-center p-4 h-full">
+                    <item.icon className={cn("h-8 w-8 mx-auto mb-2", getRoleClass(item.role).replace('bg-', 'text-'))} />
+                    <h3 className="font-bold">{item.role}</h3>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                </Card>
+            </motion.div>
+        ))}
+      </motion.div>
+
+      <motion.div 
         className="flex flex-col md:flex-row gap-4 mb-8"
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -130,9 +157,10 @@ export default function MembersPage() {
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="mentor">Mentor</SelectItem>
-              <SelectItem value="techie">Techie</SelectItem>
               <SelectItem value="seeker">Seeker</SelectItem>
+              <SelectItem value="techie">Techie</SelectItem>
               <SelectItem value="member">Member</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
         </div>
