@@ -13,8 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface Session {
     id: string;
-    menteeName: string;
-    menteeAvatar: string;
+    seekerName: string;
+    seekerAvatar: string;
     startTime: Date;
     title: string;
 }
@@ -78,11 +78,11 @@ export default function UpcomingSessionsWidget() {
           sessions.map((session) => (
             <div key={session.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-primary/5">
               <Avatar>
-                <AvatarImage src={session.menteeAvatar} />
-                <AvatarFallback>{session.menteeName?.charAt(0)}</AvatarFallback>
+                <AvatarImage src={session.seekerAvatar} />
+                <AvatarFallback>{session.seekerName?.charAt(0)}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="font-semibold">{session.menteeName}</p>
+                <p className="font-semibold">{session.seekerName}</p>
                 <p className="text-sm text-muted-foreground">{session.title}</p>
                 <p className="text-xs text-primary">{session.startTime.toLocaleString()}</p>
               </div>

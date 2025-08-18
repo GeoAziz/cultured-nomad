@@ -4,7 +4,7 @@ This document summarizes the separation of shared and role-based pages in the co
 
 ## Role-Based (Separate) Pages
 - `/dashboard/mentor/page.tsx` — Mentor dashboard
-- `/dashboard/seeker/page.tsx` — Seeker dashboard
+- `/dashboard/seeker/page.tsx` — Seeker dashboard (Note: Seekers are the user role for mentees)
 - `/dashboard/admin/page.tsx` — Admin dashboard
 - `/connect/mentor/page.tsx` — Mentor connect
 - `/connect/seeker/page.tsx` — Seeker connect
