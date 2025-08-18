@@ -56,22 +56,24 @@ const MentorDashboard = ({ user }: { user: UserProfile }) => {
 
   useEffect(() => {
     const fetchStats = async () => {
-        setLoading(true);
-        try {
-          const functions = (await import('firebase/functions')).getFunctions(app);
-          const getMentorDashboardStats = (await import('firebase/functions')).httpsCallable(functions, 'getMentorDashboardStats');
-          const result = await getMentorDashboardStats();
-          setStats(result.data as MentorStats);
-        } catch (error: any) {
-          console.error("Error fetching mentor stats:", error);
-          toast({
-            title: "Error Fetching Stats",
-            description: error.message || "Could not fetch your mentor statistics.",
-            variant: "destructive"
-          });
-        } finally {
-          setLoading(false);
-        }
+      setLoading(true);
+      try {
+        // Use Firebase callable function (Spark plan compatible)
+        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const functions = getFunctions(app);
+        const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
+        const result = await getMentorDashboardStats();
+        setStats(result.data as MentorStats);
+      } catch (error: any) {
+        console.error("Error fetching mentor stats:", error);
+        toast({
+          title: "Error Fetching Stats",
+          description: error.message || "Could not fetch your mentor statistics.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     fetchStats();
   }, [toast]);

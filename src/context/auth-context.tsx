@@ -95,8 +95,23 @@ const getFirebaseAuthErrorMessage = (errorCode: string): string => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
+  // First, wait for Firebase Auth to initialize
   useEffect(() => {
+    const waitForAuth = auth.authStateReady().then(() => {
+      console.log('[AuthProvider] Firebase Auth initialized');
+      setAuthInitialized(true);
+    });
+    return () => {
+      // No cleanup needed
+    };
+  }, []);
+
+  // Then, set up the auth state listener only after auth is ready
+  useEffect(() => {
+    if (!authInitialized) return;
+    console.log('[AuthProvider] Setting up auth state listener');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -237,6 +252,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signup,
     sendPasswordReset
   };
+
+  // Show nothing until Firebase Auth is initialized
+  if (!authInitialized) {
+    return null;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
