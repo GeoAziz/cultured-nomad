@@ -28,7 +28,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
 const baseNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/mentor', label: 'Mentor Dashboard', icon: LayoutDashboard, roles: ['mentor'] },
+  { href: '/dashboard/seeker', label: 'Seeker Dashboard', icon: LayoutDashboard, roles: ['seeker'] },
+  { href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/members', label: 'Directory', icon: Users },
   { href: '/connect', label: 'Connect', icon: MessageSquare },
   { href: '/events', label: 'Events', icon: Calendar },
@@ -64,8 +66,8 @@ export default function MainSidebar() {
   }
 
   const navItems = [
-      ...baseNavItems,
-      ...(roleSpecificNavItems[user?.role || 'member'] || [])
+    ...baseNavItems.filter(item => !item.roles || item.roles.includes(user?.role ?? '')),
+    ...(roleSpecificNavItems[user?.role || 'member'] || [])
   ].sort((a,b) => (baseNavItems.indexOf(a) > -1 ? baseNavItems.indexOf(a) : 99) - (baseNavItems.indexOf(b) > -1 ? baseNavItems.indexOf(b) : 99));
 
 
