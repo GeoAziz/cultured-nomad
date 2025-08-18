@@ -294,7 +294,16 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
  * Gets statistics for the mentor dashboard.
  */
 export const getMentorDashboardStats = functions.https.onCall(async (data, context) => {
+    console.log('[getMentorDashboardStats] Incoming request:', { 
+        data,
+        contextAuth: context.auth,
+        headers: context.rawRequest ? context.rawRequest.headers : 'no rawRequest',
+        origin: context.rawRequest ? context.rawRequest.headers['origin'] : 'no origin',
+        referer: context.rawRequest ? context.rawRequest.headers['referer'] : 'no referer',
+    });
+    
     if (!context.auth) {
+        console.error('[getMentorDashboardStats] No auth context!');
         throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
     }
     
