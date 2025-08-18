@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef }from 'react';
@@ -39,20 +40,6 @@ interface Message {
 
 function MentorConnectPage() {
     const { user } = useAuth();
-
-    // Enhanced runtime logging for debugging
-    useEffect(() => {
-        if (user) {
-            console.log('[MentorConnectPage] Authenticated user:', {
-                uid: user.uid,
-                email: user.email,
-                role: user.role,
-                name: user.name
-            });
-        } else {
-            console.log('[MentorConnectPage] No authenticated user');
-        }
-    }, [user]);
     const [seekers, setSeekers] = useState<ChatUser[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [selectedSeeker, setSelectedSeeker] = useState<ChatUser | null>(null);
@@ -90,15 +77,18 @@ function MentorConnectPage() {
                 lastMessageTime: '',
                 online: true, // Placeholder
             } as ChatUser));
-            console.log('[MentorConnectPage] Seekers fetched:', seekerList);
             setSeekers(seekerList);
             setLoadingSeekers(false);
-            if(!selectedSeeker && seekerList.length > 0) {
-                setSelectedSeeker(seekerList[0]);
-            }
         });
         return () => unsubscribe();
-    }, [user, selectedSeeker]);
+    }, [user]);
+
+    // Select the first seeker by default once the list is loaded
+    useEffect(() => {
+        if (!selectedSeeker && seekers.length > 0) {
+            setSelectedSeeker(seekers[0]);
+        }
+    }, [seekers, selectedSeeker]);
 
    // Fetch last message for each seeker
    useEffect(() => {
@@ -119,7 +109,7 @@ function MentorConnectPage() {
                 .map(doc => doc.data())
                 .filter(data => data.participants.includes(seeker.id))
                 .sort((a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.())[0];
-            console.log('[MentorConnectPage] Last message for seeker', seeker.id, lastMsg);
+            
             if (lastMsg) {
                 setSeekers(prevSeekers => prevSeekers.map(s => 
                     s.id === seeker.id ? {
@@ -165,7 +155,6 @@ function MentorConnectPage() {
                 } as Message;
             })
             .filter(msg => msg.participants.includes(selectedSeeker.id));
-        console.log('[MentorConnectPage] Messages for seeker', selectedSeeker?.id, newMessages);
         setMessages(newMessages);
         setLoadingMessages(false);
     });
