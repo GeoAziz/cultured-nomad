@@ -27,7 +27,9 @@ interface NavItem {
 }
 
 const baseNavItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/mentor', label: 'Mentor Dashboard', icon: LayoutDashboard, roles: ['mentor'] },
+  { href: '/dashboard/seeker', label: 'Seeker Dashboard', icon: LayoutDashboard, roles: ['seeker'] },
+  { href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/members', label: 'Directory', icon: Users },
   { href: '/events', label: 'Events', icon: Calendar },
   { href: '/stories', label: 'Stories', icon: BookOpen },
