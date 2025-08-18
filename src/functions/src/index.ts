@@ -284,20 +284,55 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
     }
     
     const mentorId = context.auth.uid;
-    const mentorshipsRef = db.collection("mentorships");
+    console.log(`[getMentorDashboardStats] Function called for mentorId: ${mentorId}`);
 
-    const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
-    const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+    try {
+        const mentorshipsRef = db.collection("mentorships");
+        const sessionsRef = db.collection("mentoring_sessions");
 
-    const [pendingSnapshot, acceptedSnapshot] = await Promise.all([
-        pendingQuery.get(),
-        acceptedQuery.get()
-    ]);
+        // Queries
+        const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+        const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+        const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
+        
+        // Firestore doesn't support inequality filters on different fields, so we filter in code.
+        const upcomingSessionsQuery = sessionsRef
+            .where('mentorId', '==', mentorId)
+            .where('startTime', '>=', new Date())
+            .orderBy('startTime', 'asc');
+        
+        const [
+            pendingSnapshot, 
+            acceptedSnapshot,
+            totalSessionsSnapshot,
+            upcomingSessionsSnapshot
+        ] = await Promise.all([
+            pendingQuery.get(),
+            acceptedQuery.get(),
+            totalSessionsQuery.get(),
+            upcomingSessionsQuery.get()
+        ]);
+        
+        const stats = {
+            pendingRequests: pendingSnapshot.size,
+            activeMentees: acceptedSnapshot.size,
+            totalSessions: totalSessionsSnapshot.size,
+            upcomingSessions: upcomingSessionsSnapshot.size,
+        };
+        
+        console.log(`[getMentorDashboardStats] Successfully calculated stats for ${mentorId}:`, stats);
 
-    return {
-        pendingRequests: pendingSnapshot.size,
-        activeMentees: acceptedSnapshot.size,
-    };
+        return stats;
+        
+    } catch (error) {
+        console.error(`[getMentorDashboardStats] Error for mentorId: ${mentorId}`, error);
+        if (error instanceof Error) {
+            // Throw a more specific error to the client
+            throw new functions.https.HttpsError("internal", `An error occurred while fetching mentor stats: ${error.message}`);
+        }
+        // Generic error for unknown issues
+        throw new functions.https.HttpsError("internal", "An unknown error occurred while fetching mentor stats.");
+    }
 });
 
 

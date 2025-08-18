@@ -33,16 +33,18 @@ export default function MentorDashboard() {
     if (user?.role === 'mentor') {
         const fetchStats = async () => {
             setLoading(true);
+            console.log(`[MentorDashboard] Fetching stats for user: ${user.uid}`);
             try {
                 const functions = getFunctions(app);
                 const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
                 const result: any = await getMentorDashboardStats();
+                console.log("[MentorDashboard] Received stats:", result.data);
                 setStats(result.data);
-            } catch (error) {
-                console.error("Error fetching mentor stats:", error);
+            } catch (error: any) {
+                console.error("[MentorDashboard] Error fetching mentor stats:", error);
                 toast({
-                    title: "Error",
-                    description: "Could not fetch your mentor statistics. Please try again later.",
+                    title: "Error Fetching Stats",
+                    description: error.message || "Could not fetch your mentor statistics. Please try again later.",
                     variant: "destructive"
                 });
             } finally {
@@ -53,7 +55,7 @@ export default function MentorDashboard() {
     } else {
         setLoading(false);
     }
-  }, [user]);
+  }, [user, toast]);
 
   if (!user || user.role !== 'mentor') return null;
 
