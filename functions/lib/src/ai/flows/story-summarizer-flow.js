@@ -9,7 +9,7 @@ exports.summarizeStory = summarizeStory;
  * - SummarizeStoryInput - The input type for the summarizeStory function.
  * - SummarizeStoryOutput - The return type for the summarizeStory function.
  */
-const genkit_1 = require("@/ai/genkit");
+const genkit_1 = require("../genkit");
 const genkit_2 = require("genkit");
 const SummarizeStoryInputSchema = genkit_2.z.object({
     content: genkit_2.z.string().describe('The full content of the story or journal entry.'),

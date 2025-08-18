@@ -22,8 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
-import { collection, getDocs, query, where, getFirestore } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, getDocs, query, where, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -59,6 +58,8 @@ const reviews = [
 
 interface Mentor extends UserProfile {
     isMentor: boolean;
+    dataAiHint?: string;
+    bio?: string;
 }
 
 export default function MentorshipPage() {
@@ -80,7 +81,22 @@ export default function MentorshipPage() {
         const membersCollection = collection(db, 'users');
         const q = query(membersCollection, where('isMentor', '==', true));
         const mentorSnapshot = await getDocs(q);
-        const mentorList = mentorSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Mentor));
+        const mentorList: Mentor[] = mentorSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            uid: data.uid || doc.id,
+            name: data.name || '',
+            email: data.email || '',
+            avatar: data.avatar || '',
+            role: data.role || 'mentor',
+            isMentor: data.isMentor === true,
+            industry: (data as any).industry || 'Tech',
+            interests: (data as any).interests || [],
+            bio: (data as any).bio || '',
+            dataAiHint: (data as any).dataAiHint,
+          };
+        });
         setMentors(mentorList);
 
         if (user && mentorList.length > 0) {
@@ -88,16 +104,16 @@ export default function MentorshipPage() {
                 // Prepare input for the AI flow
                 const flowInput = {
                     user: {
-                        bio: user.bio || 'A new member seeking guidance.',
+                        bio: (user as any).bio || 'A new member seeking guidance.',
                         interests: (user as any).interests || []
                     },
-                    mentors: mentorList.map(m => ({
-                        id: m.uid,
-                        name: m.name || '',
-                        bio: m.bio || '',
-                        industry: (m as any).industry || 'Tech',
-                        interests: (m as any).interests || [],
-                    }))
+          mentors: mentorList.map(m => ({
+            id: m.uid,
+            name: m.name || '',
+            bio: m.bio || '',
+            industry: m.industry || '',
+            interests: Array.isArray(m.interests) ? m.interests : [],
+          }))
                 };
                 const { mentorId, reason } = await matchMentor(flowInput);
                 const bestMatch = mentorList.find(m => m.uid === mentorId);
@@ -129,16 +145,27 @@ export default function MentorshipPage() {
     }
     setIsSubmitting(true);
     try {
-        const functions = getFunctions(app);
-        const requestMentorshipFn = httpsCallable(functions, 'requestMentorship');
-        await requestMentorshipFn({ 
-            mentorId, 
-            message: requestMessage,
-            userBio: user?.bio, // Pass additional context
-        });
-        toast({ title: "Request Sent!", description: "Your mentorship request has been sent. You'll be notified when they respond." });
-        setRequestMessage('');
-        setDialogOpen(false);
+    const db = getFirestore(app);
+    if (!user?.uid) throw new Error('User not authenticated');
+    // Check mentor exists and isMentor
+    const mentorRef = doc(db, 'users', mentorId);
+    const mentorDoc = await getDoc(mentorRef);
+    if (!mentorDoc.exists() || !mentorDoc.data()?.isMentor) {
+      toast({ title: "Mentor not found or not a mentor.", variant: "destructive" });
+      setIsSubmitting(false);
+      return;
+    }
+    await addDoc(collection(db, 'mentorships'), {
+      userId: user.uid,
+      mentorId,
+      status: "pending",
+      message: requestMessage,
+  userBio: (user as any).bio,
+      createdAt: serverTimestamp(),
+    });
+    toast({ title: "Request Sent!", description: "Your mentorship request has been sent. You'll be notified when they respond." });
+    setRequestMessage('');
+    setDialogOpen(false);
     } catch(error: any) {
         console.error("Error requesting mentorship", error);
         toast({ title: "Error", description: error.message || "Something went wrong.", variant: 'destructive' });

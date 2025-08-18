@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -35,29 +35,32 @@ export default function BroadcastPage() {
         }
 
         setLoading(true);
-        try {
-            const functions = getFunctions(app);
-            const createBroadcast = httpsCallable(functions, 'createBroadcast');
-            await createBroadcast({ title, message, type });
-
-            toast({
-                title: 'Broadcast Sent!',
-                description: 'Your message has been sent to all users.',
-            });
-            setTitle('');
-            setMessage('');
-            setType('info');
-
-        } catch (error: any) {
-            console.error(error);
-            toast({
-                title: 'Error Sending Broadcast',
-                description: error.message || 'An unexpected error occurred.',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoading(false);
-        }
+    try {
+      const db = getFirestore(app);
+      await addDoc(collection(db, 'broadcasts'), {
+        title,
+        message,
+        type,
+        createdAt: serverTimestamp(),
+        createdBy: user?.uid || null,
+      });
+      toast({
+        title: 'Broadcast Sent!',
+        description: 'Your message has been sent to all users.',
+      });
+      setTitle('');
+      setMessage('');
+      setType('info');
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Error Sending Broadcast',
+        description: error.message || 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
     };
 
 

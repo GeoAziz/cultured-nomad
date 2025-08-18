@@ -14,7 +14,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -37,7 +37,7 @@ export default function SettingsPage() {
         if(user) {
             setName(user.name || '');
             setEmail(user.email || '');
-            setBio(user.bio || '');
+            setBio((user as any).bio || '');
         }
 
     }, [user]);
@@ -53,15 +53,16 @@ export default function SettingsPage() {
     const handleSaveChanges = async () => {
         setLoading(true);
         try {
-            const functions = getFunctions(app);
-            const updateUserProfile = httpsCallable(functions, 'updateUserProfile');
-            await updateUserProfile({ name, bio });
+            const db = getFirestore(app);
+            if (!user?.uid) throw new Error('User not authenticated');
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { name, bio });
             toast({
                 title: 'Profile Updated',
                 description: 'Your changes have been saved successfully.',
             });
         } catch (error: any) {
-             toast({
+            toast({
                 title: 'Update Failed',
                 description: error.message || 'An unexpected error occurred.',
                 variant: 'destructive',
@@ -89,7 +90,7 @@ export default function SettingsPage() {
                         <CardContent className="space-y-4">
                              <div className="flex flex-col items-center">
                                 <Avatar className="w-24 h-24 mb-4 border-2 border-primary/50">
-                                    <AvatarImage src={user?.avatar} data-ai-hint={user?.dataAiHint} />
+                                    <AvatarImage src={user?.avatar} />
                                     <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <Button variant="outline" size="sm" disabled>Change Avatar (soon)</Button>

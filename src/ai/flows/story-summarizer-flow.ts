@@ -8,7 +8,7 @@
  * - SummarizeStoryOutput - The return type for the summarizeStory function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai} from '../genkit';
 import {z} from 'genkit';
 
 const SummarizeStoryInputSchema = z.object({
@@ -41,7 +41,7 @@ const storySummarizerFlow = ai.defineFlow(
     inputSchema: SummarizeStoryInputSchema,
     outputSchema: SummarizeStoryOutputSchema,
   },
-  async input => {
+  async (input: SummarizeStoryInput) => {
     const {output} = await prompt(input);
     return output!;
   }

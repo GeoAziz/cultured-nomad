@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Loader2, PenSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -47,20 +47,25 @@ export default function NewStoryPage() {
 
         setLoading(true);
         try {
-            const functions = getFunctions(app);
-            const publishStory = httpsCallable(functions, 'publishStory');
-            await publishStory({
+            const db = getFirestore(app);
+            if (!user?.uid) throw new Error('User not authenticated');
+            await addDoc(collection(db, 'stories'), {
                 title,
                 content,
                 tags: selectedTags,
-                isAnonymous
+                isAnonymous,
+                userId: user.uid,
+                author: isAnonymous ? "Anonymous Nomad" : user.name || "A Nomad",
+                avatar: isAnonymous ? "https://placehold.co/50x50.png" : user.avatar || "https://placehold.co/50x50.png",
+                createdAt: serverTimestamp(),
+                likes: 0,
+                commentCount: 0,
             });
             toast({
                 title: "Story Published!",
                 description: "Your story is now live for the sisterhood to see."
             });
             router.push('/stories');
-
         } catch (error: any) {
             console.error("Error publishing story:", error);
             toast({

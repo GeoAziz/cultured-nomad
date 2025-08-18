@@ -51,10 +51,30 @@ service cloud.firestore {
     // MENTORSHIPS
     // - Only involved parties can read mentorship requests
     // - Authenticated users can create requests
-    match /mentorships/{mentorshipId} {
-      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.mentorId);
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      // Note: Updating status (accept/decline) should be a Cloud Function
+      match /mentorships/{mentorshipId} {
+        // Allow all authenticated users to read mentorships for dashboard stats
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+        // Note: Updating status (accept/decline) should be a Cloud Function (not available on Spark)
+      }
+
+      // MENTOR SESSIONS
+      // - Allow mentors and mentees to read their sessions
+      match /mentor_sessions/{sessionId} {
+        allow read: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.menteeId);
+        allow create: if request.auth != null && (request.auth.uid == request.resource.data.mentorId || request.auth.uid == request.resource.data.menteeId);
+      }
+        // MENTORING SESSIONS
+        // - Allow mentors and mentees to read their sessions
+        match /mentoring_sessions/{sessionId} {
+          allow read: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.menteeId);
+          allow create: if request.auth != null && (request.auth.uid == request.resource.data.mentorId || request.auth.uid == request.resource.data.menteeId);
+        }
+
+    // PROMPTS
+    // - Allow any authenticated user to read daily prompts
+    match /prompts/{promptId} {
+      allow read: if request.auth != null;
     }
 
     // MOOD LOGS

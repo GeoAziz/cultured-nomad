@@ -15,18 +15,38 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDailyPrompt = exports.getMentorDashboardStats = exports.createBroadcast = exports.publishStory = exports.logMood = exports.requestMentorship = exports.sendMessage = exports.rsvpToEvent = exports.updateUserProfile = exports.onUserDelete = exports.assignUserRole = void 0;
+exports.getMentorDashboardStats = exports.createBroadcast = exports.publishStory = exports.logMood = exports.requestMentorship = exports.sendMessage = exports.rsvpToEvent = exports.updateUserProfile = exports.onUserDelete = exports.assignUserRole = void 0;
 const admin = __importStar(require("firebase-admin"));
 const functions = __importStar(require("firebase-functions"));
 const story_summarizer_flow_1 = require("../../src/ai/flows/story-summarizer-flow");
+// Simple notification sender stub (replace with your actual implementation)
+async function sendNotification({ toUserId, message }) {
+    // Example: Add notification to Firestore
+    await admin.firestore().collection("notifications").add({
+        toUserId,
+        message,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+    });
+}
 admin.initializeApp();
 const db = admin.firestore();
 // --- AUTH FUNCTIONS ---
@@ -228,7 +248,7 @@ exports.publishStory = functions.https.onCall(async (data, context) => {
  * Creates a system-wide broadcast.
  */
 exports.createBroadcast = functions.https.onCall(async (data, context) => {
-    var _a, _b;
+    var _a, _b, _c;
     // Role check happens on the client, but double-check here for security
     const uid = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid;
     if (!uid) {
@@ -247,39 +267,89 @@ exports.createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth.uid,
+        createdBy: ((_c = context.auth) === null || _c === void 0 ? void 0 : _c.uid) || null,
     });
     return { status: "success", message: "Broadcast created." };
 });
 /**
  * Gets statistics for the mentor dashboard.
  */
-var getMentorDashboardStats_1 = require("./getMentorDashboardStats");
-Object.defineProperty(exports, "getMentorDashboardStats", { enumerable: true, get: function () { return getMentorDashboardStats_1.getMentorDashboardStats; } });
-/**
- * Helper function to push a notification to a user's subcollection.
- */
-const sendNotification = async ({ toUserId, message }) => {
-    if (!toUserId || !message)
-        return;
-    const notification = {
-        message,
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-    return db.collection("notifications").doc(toUserId).collection("user_notifications").add(notification);
-};
-/**
- * A placeholder callable function to get a daily prompt.
- */
-exports.getDailyPrompt = functions.https.onCall((data, context) => {
-    const prompts = [
-        "What's one small step you took today that you're proud of, and why did it matter?",
-        "Describe a challenge you faced recently and what you learned from it.",
-        "Who is a woman in your field that inspires you, and why?",
-        "What is one skill you want to develop this month?",
-    ];
-    const prompt = prompts[Math.floor(Math.random() * prompts.length)];
-    return { prompt };
+exports.getMentorDashboardStats = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    const mentorId = context.auth.uid;
+    try {
+        const mentorshipsRef = db.collection("mentorships");
+        const sessionsRef = db.collection("mentoring_sessions");
+        const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+        const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+        const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
+        const upcomingSessionsQuery = sessionsRef.where('mentorId', '==', mentorId).where('startTime', '>', new Date());
+        const [pendingSnapshot, acceptedSnapshot, totalSessionsSnapshot, upcomingSessionsSnapshot] = await Promise.all([
+            pendingQuery.get(),
+            acceptedQuery.get(),
+            totalSessionsQuery.get(),
+            upcomingSessionsQuery.get()
+        ]);
+        return {
+            pendingRequests: pendingSnapshot.size,
+            activeMentees: acceptedSnapshot.size,
+            totalSessions: totalSessionsSnapshot.size,
+            upcomingSessions: upcomingSessionsSnapshot.size,
+        };
+    }
+    catch (error) {
+        console.error("Error in getMentorDashboardStats:", error);
+        console.log('[getMentorDashboardStats] Incoming request:', {
+            data,
+            contextAuth: context.auth,
+            headers: context.rawRequest ? context.rawRequest.headers : 'no rawRequest',
+            origin: context.rawRequest ? context.rawRequest.headers['origin'] : 'no origin',
+            referer: context.rawRequest ? context.rawRequest.headers['referer'] : 'no referer',
+        });
+        if (!context.auth) {
+            console.error('[getMentorDashboardStats] No auth context!');
+            throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+        }
+        const mentorId = context.auth.uid;
+        console.log(`[getMentorDashboardStats] Function called for mentorId: ${mentorId}`);
+        try {
+            const mentorshipsRef = db.collection("mentorships");
+            const sessionsRef = db.collection("mentoring_sessions");
+            // Queries
+            const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+            const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+            const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
+            // Firestore doesn't support inequality filters on different fields, so we filter in code.
+            const upcomingSessionsQuery = sessionsRef
+                .where('mentorId', '==', mentorId)
+                .where('startTime', '>=', new Date())
+                .orderBy('startTime', 'asc');
+            const [pendingSnapshot, acceptedSnapshot, totalSessionsSnapshot, upcomingSessionsSnapshot] = await Promise.all([
+                pendingQuery.get(),
+                acceptedQuery.get(),
+                totalSessionsQuery.get(),
+                upcomingSessionsQuery.get()
+            ]);
+            const stats = {
+                pendingRequests: pendingSnapshot.size,
+                activeMentees: acceptedSnapshot.size,
+                totalSessions: totalSessionsSnapshot.size,
+                upcomingSessions: upcomingSessionsSnapshot.size,
+            };
+            console.log(`[getMentorDashboardStats] Successfully calculated stats for ${mentorId}:`, stats);
+            return stats;
+        }
+        catch (error) {
+            console.error(`[getMentorDashboardStats] Error for mentorId: ${mentorId}`, error);
+            if (error instanceof Error) {
+                // Throw a more specific error to the client
+                throw new functions.https.HttpsError("internal", `An error occurred while fetching mentor stats: ${error.message}`);
+            }
+            // Generic error for unknown issues
+            throw new functions.https.HttpsError("internal", "An unknown error occurred while fetching mentor stats.");
+        }
+    }
 });
 //# sourceMappingURL=index.js.map

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Play, Pause, SkipBack, SkipForward, Loader2 } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
@@ -47,10 +47,14 @@ export default function WellnessPage() {
     useEffect(() => {
         const fetchPrompt = async () => {
             try {
-                const functions = getFunctions(app);
-                const getDailyPrompt = httpsCallable(functions, 'getDailyPrompt');
-                const result: any = await getDailyPrompt();
-                setJournalPrompt(result.data.prompt);
+                // Example: fetch a prompt from Firestore (or use a static fallback)
+                const db = getFirestore(app);
+                const promptDoc = await getDoc(doc(db, 'prompts', 'daily'));
+                if (promptDoc.exists()) {
+                    setJournalPrompt(promptDoc.data().prompt);
+                } else {
+                    setJournalPrompt("What's one small step you took today that you're proud of, and why did it matter?");
+                }
             } catch (error) {
                 console.error("Error fetching daily prompt", error);
                 setJournalPrompt("What's one small step you took today that you're proud of, and why did it matter?"); // Fallback prompt
@@ -68,13 +72,23 @@ export default function WellnessPage() {
         const loadingKey = notes ? 'win' : mood;
         setLoading(prev => ({ ...prev, [loadingKey]: true }));
         try {
-            const functions = getFunctions(app);
-            const logMoodFn = httpsCallable(functions, 'logMood');
-            const result: any = await logMoodFn({ mood, notes });
-
+            const db = getFirestore(app);
+            if (!user?.uid) throw new Error('User not authenticated');
+            await addDoc(collection(db, 'mood_logs/' + user.uid + '/logs'), {
+                mood,
+                notes,
+                timestamp: serverTimestamp(),
+            });
+            // Example motivational quotes
+            const quotes = [
+                "You are a powerhouse of innovation.",
+                "Your potential is limitless.",
+                "Embrace your journey."
+            ];
+            const quote = quotes[Math.floor(Math.random() * quotes.length)];
             toast({
                 title: `Feeling ${mood.toLowerCase()} logged!`,
-                description: result.data.quote,
+                description: quote,
             });
             if (notes) setWinOfTheDay('');
             if (!notes) setSelectedMood(mood);

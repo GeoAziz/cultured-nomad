@@ -11,8 +11,7 @@ import { Send, Smile, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
-import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc, Unsubscribe, limit } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { collection, getDocs, getFirestore, query, where, onSnapshot, orderBy, Timestamp, addDoc, Unsubscribe, limit, serverTimestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -39,53 +38,82 @@ interface Message {
 }
 
 
+
 export default function ConnectPage() {
-  const { user } = useAuth();
-  const [chats, setChats] = useState<ChatUser[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
-  const [loadingChats, setLoadingChats] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const { toast } = useToast();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    const { user } = useAuth();
+    const [chats, setChats] = useState<ChatUser[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
+    const [loadingChats, setLoadingChats] = useState(true);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [newMessage, setNewMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const { toast } = useToast();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [loggedInUserData, setLoggedInUserData] = useState<any>(null);
 
+    // Scroll to bottom on new messages
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+    useEffect(() => {
+        scrollToBottom()
+    }, [messages]);
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages]);
+    // Fetch logged-in user's data
+    useEffect(() => {
+        if (!user) return;
+        const db = getFirestore(app);
+        const userRef = collection(db, 'users');
+        const q = query(userRef, where('uid', '==', user.uid));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+                setLoggedInUserData(snapshot.docs[0].data());
+            }
+        });
+        return () => unsubscribe();
+    }, [user]);
 
-  // Fetch users to create a chat list
-  useEffect(() => {
-    if(!user) return;
-    const db = getFirestore(app);
-    const usersCollection = collection(db, 'users');
-    const q = query(usersCollection, where('uid', '!=', user.uid)); 
+    // Fetch users to create a chat list, filter by role
+    useEffect(() => {
+        if(!user) return;
+        const db = getFirestore(app);
+        const usersCollection = collection(db, 'users');
+        let roleFilter: string[] = [];
+        // Example: Only show mentors if user is a seeker, or vice versa
+        if (user.role === 'seeker') {
+            roleFilter = ['mentor'];
+        } else if (user.role === 'mentor') {
+            roleFilter = ['seeker'];
+        } // Add more role logic as needed
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const chatList = snapshot.docs.map(doc => ({
-            id: doc.data().uid,
-            name: doc.data().name,
-            avatar: doc.data().avatar,
-            dataAiHint: 'woman portrait',
-            lastMessage: 'Click to start a conversation',
-            lastMessageTime: '',
-            online: true, // Presence would require a dedicated solution
-        } as ChatUser));
-        setChats(chatList);
-        setLoadingChats(false);
-        if(!selectedChat && chatList.length > 0) {
-            setSelectedChat(chatList[0]);
+        let q;
+        if (roleFilter.length > 0) {
+            q = query(usersCollection, where('uid', '!=', user.uid), where('role', 'in', roleFilter));
+        } else {
+            q = query(usersCollection, where('uid', '!=', user.uid));
         }
-    });
 
-    return () => unsubscribe();
-  }, [user]);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const chatList = snapshot.docs.map(doc => ({
+                id: doc.data().uid,
+                name: doc.data().name,
+                avatar: doc.data().avatar,
+                role: doc.data().role,
+                dataAiHint: doc.data().dataAiHint || '',
+                lastMessage: 'Click to start a conversation',
+                lastMessageTime: '',
+                online: true,
+            } as ChatUser));
+            setChats(chatList);
+            setLoadingChats(false);
+            if(!selectedChat && chatList.length > 0) {
+                setSelectedChat(chatList[0]);
+            }
+        });
+        return () => unsubscribe();
+    }, [user]);
 
    // Fetch last message for each chat
    useEffect(() => {
@@ -160,11 +188,15 @@ export default function ConnectPage() {
     if(!newMessage.trim() || !selectedChat || !user) return;
     setIsSending(true);
     try {
-        const functions = getFunctions(app);
-        const sendMessageFn = httpsCallable(functions, 'sendMessage');
-        await sendMessageFn({
+        const db = getFirestore(app);
+        if (!user?.uid) throw new Error('User not authenticated');
+        await addDoc(collection(db, 'messages'), {
+            from: user.uid,
             to: selectedChat.id,
-            messageContent: newMessage
+            content: newMessage,
+            timestamp: serverTimestamp(),
+            read: false,
+            participants: [user.uid, selectedChat.id].sort(),
         });
         setNewMessage('');
     } catch(error: any) {
@@ -180,10 +212,25 @@ export default function ConnectPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)]">
-        <PageHeader title="Connect" description="Your direct line to the sisterhood." />
+        <div className="h-[calc(100vh-8rem)]">
+                <PageHeader title="Connect" description="Your direct line to the sisterhood." />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-full">
+                {/* Logged-in user profile */}
+                {loggedInUserData && (
+                    <Card className="glass-card mb-4 flex items-center gap-4 p-4">
+                        <Avatar className="w-16 h-16">
+                            <AvatarImage src={loggedInUserData.avatar} alt={loggedInUserData.name} />
+                            <AvatarFallback>{loggedInUserData.name?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <h2 className="font-headline text-lg">{loggedInUserData.name}</h2>
+                            <p className="text-sm text-muted-foreground">Role: {loggedInUserData.role}</p>
+                            {loggedInUserData.bio && <p className="text-xs mt-1">{loggedInUserData.bio}</p>}
+                        </div>
+                    </Card>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-full">
             {/* Chat List */}
             <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full overflow-y-auto">
                 <div className="p-4 border-b border-primary/20 sticky top-0 bg-card/50 backdrop-blur-sm">

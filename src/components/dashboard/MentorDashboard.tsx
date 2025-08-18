@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 import { app } from "@/lib/firebase/firebase_config";
 import { Skeleton } from "../ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -34,22 +34,40 @@ export default function MentorDashboard() {
         const fetchStats = async () => {
             setLoading(true);
             console.log(`[MentorDashboard] Fetching stats for user: ${user.uid}`);
-            try {
-                const functions = getFunctions(app);
-                const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
-                const result: any = await getMentorDashboardStats();
-                console.log("[MentorDashboard] Received stats:", result.data);
-                setStats(result.data);
-            } catch (error: any) {
-                console.error("[MentorDashboard] Error fetching mentor stats:", error);
-                toast({
-                    title: "Error Fetching Stats",
-                    description: error.message || "Could not fetch your mentor statistics. Please try again later.",
-                    variant: "destructive"
-                });
-            } finally {
-                setLoading(false);
-            }
+      try {
+        const db = getFirestore(app);
+        // Fetch mentorship stats
+        const mentorshipsRef = collection(db, "mentorships");
+        const sessionsRef = collection(db, "mentoring_sessions");
+
+        const pendingQuery = query(mentorshipsRef, where('mentorId', '==', user.uid), where('status', '==', 'pending'));
+        const acceptedQuery = query(mentorshipsRef, where('mentorId', '==', user.uid), where('status', '==', 'accepted'));
+        const totalSessionsQuery = query(sessionsRef, where('mentorId', '==', user.uid));
+        const upcomingSessionsQuery = query(sessionsRef, where('mentorId', '==', user.uid), where('startTime', '>', new Date()));
+
+        const [pendingSnapshot, acceptedSnapshot, totalSessionsSnapshot, upcomingSessionsSnapshot] = await Promise.all([
+          getDocs(pendingQuery),
+          getDocs(acceptedQuery),
+          getDocs(totalSessionsQuery),
+          getDocs(upcomingSessionsQuery)
+        ]);
+
+        setStats({
+          pendingRequests: pendingSnapshot.size,
+          activeMentees: acceptedSnapshot.size,
+          totalSessions: totalSessionsSnapshot.size,
+          upcomingSessions: upcomingSessionsSnapshot.size,
+        });
+      } catch (error: any) {
+        console.error("[MentorDashboard] Error fetching mentor stats:", error);
+        toast({
+          title: "Error Fetching Stats",
+          description: error.message || "Could not fetch your mentor statistics. Please try again later.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
         };
         fetchStats();
     } else {

@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "cultured-nomads"
-  }
+    "default": "cultured-nomads",
+    "moha": "cultured-nomads-44cec"
+  },
+  "targets": {},
+  "etags": {}
 }
