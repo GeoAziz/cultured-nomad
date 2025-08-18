@@ -22,6 +22,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[LoginPage] handleLogin triggered.');
     if (!email || !password) {
       setError('Please provide both email and password');
       return;
@@ -32,6 +33,7 @@ export default function LoginPage() {
     
     await login(email, password, {
       onSuccess: (role) => {
+        console.log(`[LoginPage] Login successful. User role: ${role}. Redirecting...`);
         switch (role) {
           case 'admin':
             router.push('/admin/dashboard');
@@ -53,6 +55,7 @@ export default function LoginPage() {
         }
       },
       onError: (err) => {
+        console.error(`[LoginPage] Login failed with error: ${err}`);
         setError(err);
         setLoading(false);
       },
