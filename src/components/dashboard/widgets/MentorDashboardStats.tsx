@@ -43,17 +43,57 @@ export default function MentorDashboardStats() {
     const fetchMentorStats = async () => {
       setLoading(true);
       try {
-        const functions = getFunctions(app);
-        const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
-        const result = await getMentorDashboardStats();
-        setStats(result.data as MentorStats);
+        const db = (await import('firebase/firestore')).getFirestore(app);
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        // Active mentees
+        const menteesQuery = query(
+          collection(db, 'mentorships'),
+          where('mentorId', '==', user.uid),
+          where('status', '==', 'accepted')
+        );
+        const menteesSnapshot = await getDocs(menteesQuery);
+        const activeMentees = menteesSnapshot.size;
+
+        // Upcoming sessions
+        const now = new Date();
+        const sessionsQuery = query(
+          collection(db, 'mentoring_sessions'),
+          where('mentorId', '==', user.uid),
+          where('startTime', '>', now)
+        );
+        const sessionsSnapshot = await getDocs(sessionsQuery);
+        const upcomingSessions = sessionsSnapshot.size;
+
+        // Total sessions
+        const totalSessionsQuery = query(
+          collection(db, 'mentoring_sessions'),
+          where('mentorId', '==', user.uid)
+        );
+        const totalSessionsSnapshot = await getDocs(totalSessionsQuery);
+        const totalSessions = totalSessionsSnapshot.size;
+
+        // Pending requests
+        const pendingQuery = query(
+          collection(db, 'mentorships'),
+          where('mentorId', '==', user.uid),
+          where('status', '==', 'pending')
+        );
+        const pendingSnapshot = await getDocs(pendingQuery);
+        const pendingRequests = pendingSnapshot.size;
+
+        setStats({
+          activeMentees,
+          upcomingSessions,
+          totalSessions,
+          pendingRequests,
+        });
       } catch (error: any) {
         console.error("Error fetching mentor stats:", error);
         toast({
           title: "Error fetching stats",
           description: error.message,
           variant: "destructive",
-        })
+        });
       } finally {
         setLoading(false);
       }

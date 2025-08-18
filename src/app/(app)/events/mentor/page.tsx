@@ -15,7 +15,7 @@ import { CalendarIcon, PlusCircle, Loader2, Calendar as CalendarIconComponent } 
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -65,7 +65,7 @@ export default function MentorEventsPage() {
             await addDoc(collection(db, 'events'), {
                 title,
                 description,
-                date: serverTimestamp.from(date),
+                date: date ? Timestamp.fromDate(date) : serverTimestamp(),
                 location,
                 type,
                 roles: roles.length > 0 ? roles : ['member', 'seeker', 'mentor', 'techie'],
