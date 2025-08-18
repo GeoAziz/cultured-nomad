@@ -36,7 +36,13 @@ const PUBLIC_ROUTES = [
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  
+
+  // Skip middleware for static assets (js, css, images, fonts, etc.)
+  const assetExtensions = ['.js', '.css', '.ico', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.woff', '.woff2', '.ttf', '.map', '.json'];
+  if (assetExtensions.some(ext => path.endsWith(ext))) {
+    return NextResponse.next();
+  }
+
   // Allow public routes
   if (PUBLIC_ROUTES.some(route => path.startsWith(route))) {
     return NextResponse.next();
@@ -44,7 +50,7 @@ export async function middleware(request: NextRequest) {
 
   // Get the session data
   const sessionData = request.cookies.get('session')?.value;
-  
+
   // If no session, redirect to login
   if (!sessionData && !PUBLIC_ROUTES.includes(path)) {
     return NextResponse.redirect(new URL('/login', request.url));
@@ -79,7 +85,7 @@ export async function middleware(request: NextRequest) {
         const userRole = userData.role.toUpperCase() as Role;
 
         // Check if trying to access a protected route
-        const protectedRoute = Object.entries(ROUTE_ACCESS).find(([route]) => 
+        const protectedRoute = Object.entries(ROUTE_ACCESS).find(([route]) =>
           path.startsWith(route)
         );
 
