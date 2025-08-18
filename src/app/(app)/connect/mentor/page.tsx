@@ -85,10 +85,10 @@ function MentorConnectPage() {
 
     // Select the first seeker by default once the list is loaded
     useEffect(() => {
-        if (!selectedSeeker && seekers.length > 0) {
+        if (seekers.length > 0 && !selectedSeeker) {
             setSelectedSeeker(seekers[0]);
         }
-    }, [seekers, selectedSeeker]);
+    }, [seekers]);
 
    // Fetch last message for each seeker
    useEffect(() => {
