@@ -1,3 +1,4 @@
+"use client";
 import { useAuthorizedRoute } from '@/hooks/use-navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { usePathname, redirect } from 'next/navigation';
