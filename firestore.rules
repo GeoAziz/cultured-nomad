@@ -52,7 +52,7 @@ service cloud.firestore {
     // - Only involved parties can read mentorship requests
     // - Authenticated users can create requests
       match /mentorships/{mentorshipId} {
-        // Allow all authenticated users to read mentorships for dashboard stats
+        // Allow any authenticated user to read mentorships; filter by mentorId in client queries
         allow read: if request.auth != null;
         allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
         // Note: Updating status (accept/decline) should be a Cloud Function (not available on Spark)
@@ -70,6 +70,20 @@ service cloud.firestore {
           allow read: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.menteeId);
           allow create: if request.auth != null && (request.auth.uid == request.resource.data.mentorId || request.auth.uid == request.resource.data.menteeId);
         }
+
+    // MENTOR RESOURCES
+    // - Allow mentors to read their resources
+    match /mentor_resources/{resourceId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.mentorId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.mentorId;
+    }
+
+    // MENTOR RATINGS
+    // - Allow mentors to read their ratings
+    match /mentor_ratings/{ratingId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.mentorId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.mentorId;
+    }
 
     // PROMPTS
     // - Allow any authenticated user to read daily prompts

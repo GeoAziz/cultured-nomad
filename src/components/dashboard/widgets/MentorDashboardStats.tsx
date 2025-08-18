@@ -58,7 +58,6 @@ export default function MentorDashboardStats() {
         setLoading(false);
       }
     };
-
     fetchMentorStats();
   }, [user, toast]);
 
