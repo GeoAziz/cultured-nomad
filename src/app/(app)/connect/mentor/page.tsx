@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef }from 'react';
@@ -16,7 +15,7 @@ import { app } from '@/lib/firebase/firebase_config';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNowStrict } from 'date-fns';
-
+import { AuthGuard } from '@/components/auth/AuthGuard';
 
 interface ChatUser {
     id: string;
@@ -35,10 +34,25 @@ interface Message {
     timestamp: string;
     senderId: string;
     self: boolean;
+    participants: string[];
 }
 
-export default function MentorConnectPage() {
+function MentorConnectPage() {
     const { user } = useAuth();
+
+    // Enhanced runtime logging for debugging
+    useEffect(() => {
+        if (user) {
+            console.log('[MentorConnectPage] Authenticated user:', {
+                uid: user.uid,
+                email: user.email,
+                role: user.role,
+                name: user.name
+            });
+        } else {
+            console.log('[MentorConnectPage] No authenticated user');
+        }
+    }, [user]);
     const [seekers, setSeekers] = useState<ChatUser[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [selectedSeeker, setSelectedSeeker] = useState<ChatUser | null>(null);
@@ -76,6 +90,7 @@ export default function MentorConnectPage() {
                 lastMessageTime: '',
                 online: true, // Placeholder
             } as ChatUser));
+            console.log('[MentorConnectPage] Seekers fetched:', seekerList);
             setSeekers(seekerList);
             setLoadingSeekers(false);
             if(!selectedSeeker && seekerList.length > 0) {
@@ -94,20 +109,23 @@ export default function MentorConnectPage() {
         const messagesCollection = collection(db, 'messages');
         const q = query(
             messagesCollection,
-            where('participants', '==', [user.uid, seeker.id].sort()),
+            where('participants', 'array-contains', user.uid),
             orderBy('timestamp', 'desc'),
-            limit(1)
+            limit(10)
         );
 
         return onSnapshot(q, (snapshot) => {
-            if (!snapshot.empty) {
-                const lastMsgDoc = snapshot.docs[0];
-                const lastMsgData = lastMsgDoc.data();
+            const lastMsg = snapshot.docs
+                .map(doc => doc.data())
+                .filter(data => data.participants.includes(seeker.id))
+                .sort((a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.())[0];
+            console.log('[MentorConnectPage] Last message for seeker', seeker.id, lastMsg);
+            if (lastMsg) {
                 setSeekers(prevSeekers => prevSeekers.map(s => 
                     s.id === seeker.id ? {
                         ...s,
-                        lastMessage: lastMsgData.content,
-                        lastMessageTime: lastMsgData.timestamp ? formatDistanceToNowStrict(lastMsgData.timestamp.toDate()) : 'now',
+                        lastMessage: lastMsg.content,
+                        lastMessageTime: lastMsg.timestamp ? formatDistanceToNowStrict(lastMsg.timestamp.toDate()) : 'now',
                     } : s
                 ));
             }
@@ -127,23 +145,27 @@ export default function MentorConnectPage() {
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
     
-    const q = query(messagesCollection, 
-        where('participants', '==', [user.uid, selectedSeeker.id].sort()),
+    const q = query(
+        messagesCollection,
+        where('participants', 'array-contains', user.uid),
         orderBy('timestamp', 'asc')
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const newMessages = snapshot.docs.map((doc: any) => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                content: data.content,
-                senderId: data.from,
-                timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
-                self: data.from === user.uid,
-            } as Message;
-        });
-
+        const newMessages = snapshot.docs
+            .map((doc: any) => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    content: data.content,
+                    senderId: data.from,
+                    timestamp: data.timestamp ? (data.timestamp as Timestamp).toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now',
+                    self: data.from === user.uid,
+                    participants: data.participants,
+                } as Message;
+            })
+            .filter(msg => msg.participants.includes(selectedSeeker.id));
+        console.log('[MentorConnectPage] Messages for seeker', selectedSeeker?.id, newMessages);
         setMessages(newMessages);
         setLoadingMessages(false);
     });
@@ -313,7 +335,16 @@ export default function MentorConnectPage() {
                     </div>
                 )}
             </Card>
+            </div>
         </div>
-    </div>
+  );
+}
+
+// Wrapper component for AuthGuard
+export default function MentorConnectPageWrapper() {
+  return (
+    <AuthGuard requiredRole="mentor">
+      <MentorConnectPage />
+    </AuthGuard>
   );
 }

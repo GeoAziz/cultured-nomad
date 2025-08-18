@@ -32,20 +32,28 @@ const baseNavItems = [
   { href: '/dashboard/seeker', label: 'Seeker Dashboard', icon: LayoutDashboard, roles: ['seeker'] },
   { href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { href: '/members', label: 'Directory', icon: Users },
-  { href: '/connect/mentor', label: 'Connect', icon: MessageSquare, roles: ['mentor'] },
-  { href: '/connect/seeker', label: 'Connect', icon: MessageSquare, roles: ['seeker'] },
-  { href: '/connect', label: 'Connect', icon: MessageSquare, roles: ['admin', 'techie', 'member'] },
   { href: '/events', label: 'Events', icon: Calendar },
   { href: '/stories', label: 'Stories', icon: BookOpen },
   { href: '/wellness', label: 'Wellness', icon: Sparkles },
+  { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake },
 ];
 
 const roleSpecificNavItems = {
-    mentor: [],
-    seeker: [{ href: '/mentorship', label: 'Find a Mentor', icon: HeartHandshake }],
-    techie: [],
-    member: [{ href: '/mentorship', label: 'Mentorship', icon: HeartHandshake }],
-    admin: [],
+    mentor: [
+        { href: '/connect/mentor', label: 'Connect', icon: MessageSquare }
+    ],
+    seeker: [
+        { href: '/connect/seeker', label: 'Connect', icon: MessageSquare }
+    ],
+    techie: [
+        { href: '/connect', label: 'Connect', icon: MessageSquare }
+    ],
+    member: [
+        { href: '/connect', label: 'Connect', icon: MessageSquare }
+    ],
+    admin: [
+        { href: '/connect', label: 'Connect', icon: MessageSquare }
+    ]
 }
 
 const bottomNavItems = [

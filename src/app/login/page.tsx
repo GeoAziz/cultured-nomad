@@ -32,10 +32,24 @@ export default function LoginPage() {
     
     await login(email, password, {
       onSuccess: (role) => {
-        if (role === 'admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/dashboard');
+        switch (role) {
+          case 'admin':
+            router.push('/admin/dashboard');
+            break;
+          case 'mentor':
+            router.push('/dashboard/mentor');
+            break;
+          case 'seeker':
+            router.push('/dashboard/seeker');
+            break;
+          case 'member':
+            router.push('/dashboard/member');
+            break;
+          case 'techie':
+            router.push('/dashboard/techie');
+            break;
+          default:
+            router.push('/dashboard');
         }
       },
       onError: (err) => {
