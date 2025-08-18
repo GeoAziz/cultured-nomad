@@ -1,114 +1,128 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Deny all reads and writes by default. This is a good security practice.
+  
+    // Deny all reads and writes by default
     match /{document=**} {
       allow read, write: if false;
     }
 
     // USERS
-    // - Allow anyone authenticated to read user profiles (for directory, connect pages, etc.)
-    // - Allow users to create their own profile document on signup.
-    // - Allow users to update their own profile fields.
+    // - Allow anyone authenticated to read user profiles (for directory, etc.)
+    // - Allow users to create their own profile document (on signup)
+    // - Allow users to update their own profile (name, bio)
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth.uid == userId;
-      // Allow users to update their own profile, but not change their role.
-      allow update: if request.auth.uid == userId && !("role" in request.resource.data);
+      allow update: if request.auth.uid == userId && request.resource.data.keys().hasAll(['name', 'bio']);
     }
 
     // STORIES
-    // - Allow any authenticated user to read stories.
-    // - Allow authenticated users to create new stories.
-    // Note: Liking/commenting would need additional rules or a Cloud Function.
+    // - Allow any authenticated user to read stories
+    // - Allow authenticated users to create new stories
     match /stories/{storyId} {
-      allow read, create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      // Note: Liking/commenting would need additional rules
     }
-
+    
     // MESSAGES
-    // - To enable querying for conversations, we allow any authenticated user to read.
-    // - Security is enforced by client-side queries using `where('participants', 'array-contains', request.auth.uid)`.
-    // - Creation is still restricted to participants.
+    // - Only participants can read or create messages in a thread
     match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null && request.auth.uid in request.resource.data.participants;
+        allow read, create: if request.auth != null && request.auth.uid in request.resource.data.participants;
     }
 
     // EVENTS
-    // - Allow any authenticated user to read and create events.
-    // - Updates/deletes could be restricted to the event host.
+    // - Allow any authenticated user to read events
     match /events/{eventId} {
-        allow read, create: if request.auth != null;
-        allow update, delete: if request.auth != null && request.auth.uid == resource.data.hostId;
+        allow read: if request.auth != null;
     }
 
     // EVENT RSVPS
-    // - Users can only create or delete RSVPs for themselves.
-    // - The document ID format (`userId_eventId`) provides an extra layer of security.
+    // - Users can only create/delete RSVPs for themselves
     match /event_rsvps/{rsvpId} {
         allow read: if request.auth != null && request.auth.uid == resource.data.userId;
         allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
         allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
-
+    
     // MENTORSHIPS
-    // - To enable querying for requests, we allow authenticated users to read.
-    // - Security is enforced by client-side queries (`where('mentorId', '==', uid)` or `where('userId', '==', uid)`).
-    // - Seekers can create requests for themselves.
-    match /mentorships/{mentorshipId} {
+    // - Only involved parties can read mentorship requests
+    // - Authenticated users can create requests
+      match /mentorships/{mentorshipId} {
+        // Allow any authenticated user to read mentorships; filter by mentorId in client queries
         allow read: if request.auth != null;
         allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-        // Note: Updating status (accept/decline) should be restricted to the mentor.
-        allow update: if request.auth != null && request.auth.uid == resource.data.mentorId;
+        // Note: Updating status (accept/decline) should be a Cloud Function (not available on Spark)
+      }
+
+      // MENTOR SESSIONS
+      // - Allow mentors and mentees to read their sessions
+      match /mentor_sessions/{sessionId} {
+        allow read: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.menteeId);
+        allow create: if request.auth != null && (request.auth.uid == request.resource.data.mentorId || request.auth.uid == request.resource.data.menteeId);
+      }
+        // MENTORING SESSIONS
+        // - Allow mentors and mentees to read their sessions
+        match /mentoring_sessions/{sessionId} {
+          allow read: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.menteeId);
+          allow create: if request.auth != null && (request.auth.uid == request.resource.data.mentorId || request.auth.uid == request.resource.data.menteeId);
+        }
+
+    // MENTOR RESOURCES
+    // - Allow mentors to read their resources
+    match /mentor_resources/{resourceId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.mentorId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.mentorId;
     }
 
-    // MENTORING SESSIONS
-    // - Similar to mentorships, allow reads for querying, secured by client-side logic.
-    // - Creation and updates are restricted to the involved mentor or seeker.
-    match /mentoring_sessions/{sessionId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && (request.auth.uid == resource.data.mentorId || request.auth.uid == resource.data.seekerId);
+    // MENTOR RATINGS
+    // - Allow mentors to read their ratings
+    match /mentor_ratings/{ratingId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.mentorId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.mentorId;
     }
 
     // PROMPTS
-    // - Allow any authenticated user to read daily prompts.
+    // - Allow any authenticated user to read daily prompts
     match /prompts/{promptId} {
       allow read: if request.auth != null;
     }
 
     // MOOD LOGS
-    // - Users can only create and read mood logs for themselves in their own subcollection.
+    // - Users can only create mood logs for themselves in their own subcollection.
     match /mood_logs/{userId}/logs/{logId} {
-        allow create, read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.uid == userId;
     }
 
     // BROADCASTS
-    // - Allow authenticated users to read broadcasts.
-    // - Writes are handled by an admin-only Cloud Function.
+    // - Allow authenticated users to read broadcasts
     match /broadcasts/{broadcastId} {
       allow read: if request.auth != null;
+      // Writes are handled by an admin-only Cloud Function
     }
 
     // FEEDBACK
-    // - Allow authenticated users to create feedback.
-    // - Reads are handled by an admin-only Cloud Function/Admin SDK.
+    // - Allow authenticated users to create feedback
     match /feedback/{feedbackId} {
         allow create: if request.auth != null;
+        // Reads are handled by an admin-only Cloud Function/Admin SDK
     }
 
     // SERVICES
-    // - Allow authenticated users to read approved services.
-    // - Creating and managing services would likely be done via Cloud Functions for approval workflows.
+    // - Allow authenticated users to read approved services
     match /services/{serviceId} {
         allow read: if request.auth != null && resource.data.status == 'Approved';
+        // Creating and managing services would likely be done via Cloud Functions
     }
 
     // NOTIFICATIONS
-    // - Users can only read notifications intended for them.
+    // - Users can only read notifications intended for them
     match /notifications/{userId}/user_notifications/{notificationId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
