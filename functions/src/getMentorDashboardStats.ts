@@ -1,8 +1,8 @@
-import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
-import { summarizeStory } from "../../src/ai/flows/story-summarizer-flow";
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import * as cors from 'cors';
 
-admin.initializeApp();
+const corsHandler = cors({ origin: true });
 const db = admin.firestore();
 
 // --- AUTH FUNCTIONS ---
@@ -268,7 +268,7 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth?.uid || null,
+        createdBy: context.auth.uid,
     });
 
     return { status: "success", message: "Broadcast created." };
@@ -288,65 +288,15 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
     const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
     const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
     
-    // Query for sessions
-    const sessionsRef = db.collection("mentoring_sessions");
-    const now = admin.firestore.Timestamp.now();
-    
-    const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
-    const upcomingSessionsQuery = sessionsRef
-        .where('mentorId', '==', mentorId)
-        .where('startTime', '>', now)
-        .orderBy('startTime', 'asc');
-
-
-    const [
-        pendingSnapshot, 
-        acceptedSnapshot, 
-        totalSessionsSnapshot, 
-        upcomingSessionsSnapshot
-    ] = await Promise.all([
+    const [pendingSnapshot, acceptedSnapshot] = await Promise.all([
         pendingQuery.get(),
         acceptedQuery.get(),
         totalSessionsQuery.get(),
-        upcomingSessionsQuery.get()
+        upcomingSessionsSnapshot.get()
     ]);
 
     return {
         pendingRequests: pendingSnapshot.size,
         activeMentees: acceptedSnapshot.size,
-        totalSessions: totalSessionsSnapshot.size,
-        upcomingSessions: upcomingSessionsSnapshot.size
     };
-});
-
-
-/**
- * Helper function to push a notification to a user's subcollection.
- */
-const sendNotification = async ({ toUserId, message }: { toUserId: string; message: string; }) => {
-    if (!toUserId || !message) return;
-
-    const notification = {
-        message,
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    return db.collection("notifications").doc(toUserId).collection("user_notifications").add(notification);
-};
-
-/**
- * A placeholder callable function to get a daily prompt.
- */
-export const getDailyPrompt = functions.https.onCall((data, context) => {
-    const prompts = [
-        "What's one small step you took today that you're proud of, and why did it matter?",
-        "Describe a challenge you faced recently and what you learned from it.",
-        "Who is a woman in your field that inspires you, and why?",
-        "What is one skill you want to develop this month?",
-    ];
-    
-    const prompt = prompts[Math.floor(Math.random()*prompts.length)];
-
-    return { prompt };
 });
