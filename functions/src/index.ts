@@ -293,7 +293,6 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
         const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
         const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
         
-        // This is the corrected query logic. We fetch all upcoming sessions and filter in memory.
         const upcomingSessionsQuery = sessionsRef.where('mentorId', '==', mentorId).where('startTime', '>', new Date());
         
         const [
