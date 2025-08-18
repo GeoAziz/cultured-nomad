@@ -284,7 +284,7 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth.uid,
+        createdBy: context.auth?.uid || "",
     });
 
     return { status: "success", message: "Broadcast created." };
