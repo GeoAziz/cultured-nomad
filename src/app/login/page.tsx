@@ -22,7 +22,6 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[LoginPage] handleLogin triggered.');
     if (!email || !password) {
       setError('Please provide both email and password');
       return;
@@ -33,29 +32,28 @@ export default function LoginPage() {
     
     await login(email, password, {
       onSuccess: (role) => {
-        console.log(`[LoginPage] Login successful. User role: ${role}. Redirecting...`);
+        let destination = '/dashboard';
         switch (role) {
           case 'admin':
-            router.push('/admin/dashboard');
+            destination = '/admin/dashboard';
             break;
           case 'mentor':
-            router.push('/dashboard/mentor');
+            destination = '/dashboard/mentor';
             break;
           case 'seeker':
-            router.push('/dashboard/seeker');
+            destination = '/dashboard/seeker';
             break;
           case 'member':
-            router.push('/dashboard/member');
+             destination = '/dashboard/member';
             break;
           case 'techie':
-            router.push('/dashboard/techie');
+             destination = '/dashboard/techie';
             break;
-          default:
-            router.push('/dashboard');
         }
+        // Use window.location.href for a full page reload to ensure auth state is updated globally.
+        window.location.href = destination;
       },
       onError: (err) => {
-        console.error(`[LoginPage] Login failed with error: ${err}`);
         setError(err);
         setLoading(false);
       },

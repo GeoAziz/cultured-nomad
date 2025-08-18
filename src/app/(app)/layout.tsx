@@ -13,15 +13,12 @@ function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
-    console.log('[ProtectedRouteLayout] Running effect. Loading:', loading, 'User:', user ? user.uid : 'null', 'Path:', pathname);
     if (!loading && !user) {
-      console.log('[ProtectedRouteLayout] No user and not loading, redirecting to /login');
       router.push('/login');
     }
   }, [user, loading, router, pathname]);
 
   if (loading) {
-    console.log('[ProtectedRouteLayout] Auth is loading, showing spinner.');
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -30,11 +27,9 @@ function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }
   }
 
   if (!user) {
-    console.log('[ProtectedRouteLayout] No user, rendering null (should be redirected).');
     return null;
   }
   
-  console.log('[ProtectedRouteLayout] User is authenticated, rendering layout.');
   return (
       <div className="flex min-h-screen bg-background">
         <MainSidebar />

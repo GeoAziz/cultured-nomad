@@ -97,21 +97,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('[AuthContext] onAuthStateChanged triggered.');
       if (firebaseUser) {
-        console.log(`[AuthContext] Firebase user found: ${firebaseUser.uid}. Fetching Firestore profile.`);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         try {
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists()) {
-              console.log(`[AuthContext] Firestore doc found for ${firebaseUser.uid}.`, userDoc.data());
               const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
               setUser(userProfile);
           } else {
-            console.warn(`[AuthContext] No Firestore document found for user ${firebaseUser.uid}. This might be a new sign-up or a race condition.`);
             setUser({ // Set a temporary user to avoid being logged out
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -124,14 +119,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(null); // Explicitly set user to null on error
         }
       } else {
-        console.log('[AuthContext] No Firebase user found. User is logged out.');
         setUser(null);
       }
-      console.log('[AuthContext] Auth state processing finished. Setting loading to false.');
       setLoading(false);
     });
     return () => {
-        console.log('[AuthContext] Cleaning up onAuthStateChanged listener.');
         unsubscribe();
     };
   }, []);
@@ -141,32 +133,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     pass: string,
     callbacks: { onSuccess: (role: UserRole) => void; onError: (msg: string) => void }
   ) => {
-    console.log(`[AuthContext] login called for email: ${email}`);
     setLoading(true);
     try {
-      console.log('[AuthContext] Calling signInWithEmailAndPassword...');
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      console.log('[AuthContext] signInWithEmailAndPassword SUCCESS.', userCredential.user);
-      
       const userDocRef = doc(db, 'users', userCredential.user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        console.log('[AuthContext] Login: Firestore doc found.', userDoc.data());
         const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
-        // The onAuthStateChanged listener will handle setting the user state.
-        // We just call the success callback here.
         callbacks.onSuccess(userProfile.role);
       } else {
-        console.error('[AuthContext] Login failed: User exists in Auth but not in Firestore.');
         await signOut(auth);
         callbacks.onError("Your user profile could not be found. Please contact support.");
       }
     } catch (error: any) {
-      console.error("[AuthContext] login function caught an error:", error);
       callbacks.onError(getFirebaseAuthErrorMessage(error.code));
     } finally {
-        console.log('[AuthContext] login function finished. Setting loading to false.');
         setLoading(false);
     }
   };
@@ -185,7 +167,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
           const { user: newUser } = userCredential;
 
-          // Update the user's Auth profile immediately
           await updateProfile(newUser, { 
             displayName: name,
             photoURL: `https://placehold.co/150x150.png` 
@@ -231,7 +212,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const logout = async () => {
-    console.log('[AuthContext] logout called.');
     await signOut(auth);
     setUser(null);
   };
