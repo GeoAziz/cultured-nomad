@@ -64,13 +64,13 @@ export default function StoriesWidget() {
             <div key={story.id} className="space-y-3 p-3 rounded-lg hover:bg-accent/5 transition-colors">
               <div className="flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={story.author.avatar} />
-                  <AvatarFallback>{story.author.name[0]}</AvatarFallback>
+                  <AvatarImage src={story.author?.avatar || ""} />
+                  <AvatarFallback>{story.author?.name ? story.author.name[0] : "?"}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-sm font-medium">{story.author.name}</p>
+                  <p className="text-sm font-medium">{story.author?.name || "Unknown"}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(story.createdAt).toLocaleDateString()}
+                    {story.createdAt ? new Date(story.createdAt).toLocaleDateString() : ""}
                   </p>
                 </div>
               </div>
@@ -80,7 +80,7 @@ export default function StoriesWidget() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
-                  {story.tags.map((tag) => (
+                  {(story.tags || []).map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-xs">
                       {tag}
                     </Badge>
