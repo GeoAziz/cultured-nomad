@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as cors from 'cors';
+import cors from 'cors';
 
 const corsHandler = cors({ origin: true });
 const db = admin.firestore();
@@ -115,6 +115,18 @@ export const rsvpToEvent = functions.https.onCall(async (data, context) => {
 
 
 /**
+ * Helper function to send a notification to a user.
+ */
+async function sendNotification({ toUserId, message }: { toUserId: string; message: string }) {
+    await db.collection("notifications").add({
+        toUserId,
+        message,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+    });
+}
+
+/**
  * Sends a message from one user to another.
  */
 export const sendMessage = functions.https.onCall(async (data, context) => {
@@ -222,22 +234,29 @@ export const publishStory = functions.https.onCall(async (data, context) => {
     const { title, content, tags, isAnonymous } = data;
     const userId = context.auth.uid;
 
-    // Generate excerpt using AI
-    const { excerpt } = await summarizeStory({ content });
-
-    const storyData = {
-        title,
-        content,
-        excerpt,
-        tags: tags || [],
-        isAnonymous: !!isAnonymous,
-        userId: userId,
-        author: isAnonymous ? "Anonymous Nomad" : context.auth.token.name || "A Nomad",
-        avatar: isAnonymous ? "https://placehold.co/50x50.png" : context.auth.token.picture || "https://placehold.co/50x50.png",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        likes: 0,
-        commentCount: 0,
-    };
+        // Generate excerpt using AI
+        const { excerpt } = await summarizeStory({ content });
+    
+        const storyData = {
+            title,
+            content,
+            excerpt,
+            tags: tags || [],
+            isAnonymous: !!isAnonymous,
+            userId: userId,
+            author: isAnonymous ? "Anonymous Nomad" : context.auth.token.name || "A Nomad",
+            avatar: isAnonymous ? "https://placehold.co/50x50.png" : context.auth.token.picture || "https://placehold.co/50x50.png",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            likes: 0,
+            commentCount: 0,
+        };
+    
+    
+    // Dummy summarizeStory implementation
+    async function summarizeStory({ content }: { content: string }): Promise<{ excerpt: string }> {
+        // Simple excerpt: first 100 characters
+        return { excerpt: content.slice(0, 100) + (content.length > 100 ? "..." : "") };
+    }
 
     await db.collection("stories").add(storyData);
 
@@ -268,7 +287,7 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth.uid,
+        createdBy: context.auth!.uid,
     });
 
     return { status: "success", message: "Broadcast created." };
@@ -290,9 +309,7 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
     
     const [pendingSnapshot, acceptedSnapshot] = await Promise.all([
         pendingQuery.get(),
-        acceptedQuery.get(),
-        totalSessionsQuery.get(),
-        upcomingSessionsSnapshot.get()
+        acceptedQuery.get()
     ]);
 
     return {

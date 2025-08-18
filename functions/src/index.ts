@@ -309,7 +309,7 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
         pendingQuery.get(),
         acceptedQuery.get(),
         totalSessionsQuery.get(),
-        upcomingSessionsSnapshot.get()
+        upcomingSessionsQuery.get()
     ]);
 
     return {
