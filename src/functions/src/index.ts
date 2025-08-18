@@ -56,6 +56,21 @@ export const onUserDelete = functions.auth.user().onDelete(async (user) => {
 // --- CALLABLE FUNCTIONS ---
 
 /**
+ * Helper function to push a notification to a user's subcollection.
+ */
+const sendNotification = async ({ toUserId, message }: { toUserId: string; message: string; }) => {
+    if (!toUserId || !message) return;
+
+    const notification = {
+        message,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    return db.collection("notifications").doc(toUserId).collection("user_notifications").add(notification);
+};
+
+/**
  * Allows a user to update their own profile information.
  */
 export const updateUserProfile = functions.https.onCall(async (data, context) => {
@@ -336,20 +351,6 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
 });
 
 
-/**
- * Helper function to push a notification to a user's subcollection.
- */
-const sendNotification = async ({ toUserId, message }: { toUserId: string; message: string; }) => {
-    if (!toUserId || !message) return;
-
-    const notification = {
-        message,
-        read: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    return db.collection("notifications").doc(toUserId).collection("user_notifications").add(notification);
-};
 
 /**
  * A placeholder callable function to get a daily prompt.

@@ -83,7 +83,7 @@ export default function MentorConnectPage() {
             }
         });
         return () => unsubscribe();
-    }, [user]);
+    }, [user, selectedSeeker]);
 
    // Fetch last message for each seeker
    useEffect(() => {
@@ -116,7 +116,7 @@ export default function MentorConnectPage() {
 
     return () => unsubscribes.forEach(unsub => unsub());
 
-}, [seekers.length, user]);
+}, [seekers, user]);
 
 
   // Fetch messages for the selected seeker
@@ -184,13 +184,13 @@ export default function MentorConnectPage() {
 
   return (
         <div className="h-[calc(100vh-8rem)]">
-            <PageHeader title="Mentor Connect" description="Your direct line to your mentees." />
+            <PageHeader title="Mentor Connect" description="Your direct line to your seekers." />
 
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-full">
             {/* Seeker List */}
             <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full overflow-y-auto">
                 <div className="p-4 border-b border-primary/20 sticky top-0 bg-card/50 backdrop-blur-sm">
-                    <h3 className="font-headline text-xl">Your Mentees</h3>
+                    <h3 className="font-headline text-xl">Your Seekers</h3>
                 </div>
                 <div className="space-y-1 p-2">
                     {loadingSeekers ? (
@@ -204,7 +204,7 @@ export default function MentorConnectPage() {
                             </div>
                         ))
                     ) : seekers.length === 0 ? (
-                         <p className="text-center text-muted-foreground p-4">No mentees found.</p>
+                         <p className="text-center text-muted-foreground p-4">No seekers found.</p>
                     ) : (
                         seekers.map(seeker => (
                             <button
@@ -309,7 +309,7 @@ export default function MentorConnectPage() {
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center text-foreground/50">
-                        {loadingSeekers ? <Loader2 className="animate-spin h-8 w-8" /> : <p>Select a mentee to start messaging</p>}
+                        {loadingSeekers ? <Loader2 className="animate-spin h-8 w-8" /> : <p>Select a seeker to start messaging</p>}
                     </div>
                 )}
             </Card>

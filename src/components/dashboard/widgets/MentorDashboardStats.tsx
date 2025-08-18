@@ -40,70 +40,32 @@ export default function MentorDashboardStats() {
 
   useEffect(() => {
     if (!user) return;
+    
     const fetchMentorStats = async () => {
       setLoading(true);
       try {
-        const db = (await import('firebase/firestore')).getFirestore(app);
-        const { collection, query, where, getDocs } = await import('firebase/firestore');
-        // Active mentees
-        const menteesQuery = query(
-          collection(db, 'mentorships'),
-          where('mentorId', '==', user.uid),
-          where('status', '==', 'accepted')
-        );
-        const menteesSnapshot = await getDocs(menteesQuery);
-        const activeMentees = menteesSnapshot.size;
-
-        // Upcoming sessions
-        const now = new Date();
-        const sessionsQuery = query(
-          collection(db, 'mentoring_sessions'),
-          where('mentorId', '==', user.uid),
-          where('startTime', '>', now)
-        );
-        const sessionsSnapshot = await getDocs(sessionsQuery);
-        const upcomingSessions = sessionsSnapshot.size;
-
-        // Total sessions
-        const totalSessionsQuery = query(
-          collection(db, 'mentoring_sessions'),
-          where('mentorId', '==', user.uid)
-        );
-        const totalSessionsSnapshot = await getDocs(totalSessionsQuery);
-        const totalSessions = totalSessionsSnapshot.size;
-
-        // Pending requests
-        const pendingQuery = query(
-          collection(db, 'mentorships'),
-          where('mentorId', '==', user.uid),
-          where('status', '==', 'pending')
-        );
-        const pendingSnapshot = await getDocs(pendingQuery);
-        const pendingRequests = pendingSnapshot.size;
-
-        setStats({
-          activeMentees,
-          upcomingSessions,
-          totalSessions,
-          pendingRequests,
-        });
+        const functions = getFunctions(app);
+        const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
+        const result = await getMentorDashboardStats();
+        setStats(result.data as MentorStats);
       } catch (error: any) {
         console.error("Error fetching mentor stats:", error);
         toast({
           title: "Error fetching stats",
-          description: error.message,
+          description: error.message || "Could not retrieve your mentor statistics.",
           variant: "destructive",
         });
       } finally {
         setLoading(false);
       }
     };
+    
     fetchMentorStats();
   }, [user, toast]);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Users} label="Active Mentees" value={stats.activeMentees} loading={loading} />
+        <StatCard icon={Users} label="Active Seekers" value={stats.activeMentees} loading={loading} />
         <StatCard icon={Calendar} label="Upcoming Sessions" value={stats.upcomingSessions} loading={loading} />
         <StatCard icon={BookOpen} label="Total Sessions" value={stats.totalSessions} loading={loading} />
         <StatCard icon={Star} label="Pending Requests" value={stats.pendingRequests} loading={loading} />

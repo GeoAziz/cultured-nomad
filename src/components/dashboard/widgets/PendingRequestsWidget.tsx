@@ -60,7 +60,7 @@ export default function PendingRequestsWidget() {
     <Card className="glass-card">
       <CardHeader>
         <CardTitle className="font-headline text-xl">Mentorship Requests</CardTitle>
-        <CardDescription>Review and respond to new mentees.</CardDescription>
+        <CardDescription>Review and respond to new mentorship requests.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
          {loading ? (
