@@ -3,9 +3,9 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Users, Calendar, BookOpen, Star, Loader2 } from 'lucide-react';
+import { Users, Calendar, BookOpen, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import type { MentorStats } from '@/types/mentorship';
 import { useToast } from '@/hooks/use-toast';
@@ -44,10 +44,36 @@ export default function MentorDashboardStats() {
     const fetchMentorStats = async () => {
       setLoading(true);
       try {
-        const functions = getFunctions(app);
-        const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
-        const result = await getMentorDashboardStats();
-        setStats(result.data as MentorStats);
+        const db = getFirestore(app);
+        const mentorId = user.uid;
+
+        const mentorshipsRef = collection(db, "mentorships");
+        const sessionsRef = collection(db, "mentoring_sessions");
+
+        const pendingQuery = query(mentorshipsRef, where('mentorId', '==', mentorId), where('status', '==', 'pending'));
+        const acceptedQuery = query(mentorshipsRef, where('mentorId', '==', mentorId), where('status', '==', 'accepted'));
+        const totalSessionsQuery = query(sessionsRef, where('mentorId', '==', mentorId));
+        const upcomingSessionsQuery = query(sessionsRef, where('mentorId', '==', mentorId), where('startTime', '>=', new Date()));
+        
+        const [
+            pendingSnapshot, 
+            acceptedSnapshot,
+            totalSessionsSnapshot,
+            upcomingSessionsSnapshot
+        ] = await Promise.all([
+            getDocs(pendingQuery),
+            getDocs(acceptedQuery),
+            getDocs(totalSessionsQuery),
+            getDocs(upcomingSessionsQuery)
+        ]);
+
+        setStats({
+            pendingRequests: pendingSnapshot.size,
+            activeMentees: acceptedSnapshot.size,
+            totalSessions: totalSessionsSnapshot.size,
+            upcomingSessions: upcomingSessionsSnapshot.size,
+        });
+
       } catch (error: any) {
         console.error("Error fetching mentor stats:", error);
         toast({
