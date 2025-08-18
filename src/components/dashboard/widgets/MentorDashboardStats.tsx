@@ -19,21 +19,57 @@ export default function MentorDashboardStats() {
   useEffect(() => {
     const fetchMentorStats = async () => {
       if (!user?.uid) return;
-      
       const db = getFirestore(app);
-      // Fetch mentee relationships
-      const menteesQuery = query(
-        collection(db, 'mentorship'),
-        where('mentorId', '==', user.uid),
-        where('status', '==', 'active')
-      );
-      
-      const menteesSnapshot = await getDocs(menteesQuery);
-      setStats(prev => ({ ...prev, activeMentees: menteesSnapshot.size }));
-      
-      // Add more stat queries here
-    };
 
+      // Active mentees
+      const menteesQuery = query(
+        collection(db, 'mentorships'),
+        where('mentorId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+      const menteesSnapshot = await getDocs(menteesQuery);
+      const activeMentees = menteesSnapshot.size;
+
+      // Upcoming sessions
+      const now = new Date();
+      const sessionsQuery = query(
+        collection(db, 'mentoring_sessions'),
+        where('mentorId', '==', user.uid),
+        where('startTime', '>', now)
+      );
+      const sessionsSnapshot = await getDocs(sessionsQuery);
+      const upcomingSessions = sessionsSnapshot.size;
+
+      // Resources shared
+      const resourcesQuery = query(
+        collection(db, 'mentor_resources'),
+        where('mentorId', '==', user.uid)
+      );
+      const resourcesSnapshot = await getDocs(resourcesQuery);
+      const resourcesShared = resourcesSnapshot.size;
+
+      // Average rating
+      const ratingsQuery = query(
+        collection(db, 'mentor_ratings'),
+        where('mentorId', '==', user.uid)
+      );
+      const ratingsSnapshot = await getDocs(ratingsQuery);
+      let averageRating = 0;
+      if (!ratingsSnapshot.empty) {
+        let total = 0;
+        ratingsSnapshot.forEach(doc => {
+          total += doc.data().rating || 0;
+        });
+        averageRating = total / ratingsSnapshot.size;
+      }
+
+      setStats({
+        activeMentees,
+        upcomingSessions,
+        resourcesShared,
+        averageRating,
+      });
+    };
     fetchMentorStats();
   }, [user]);
 
