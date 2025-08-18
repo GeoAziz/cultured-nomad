@@ -269,7 +269,7 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth.uid,
+        createdBy: context.auth?.uid ?? "unknown",
     });
 
     return { status: "success", message: "Broadcast created." };
@@ -309,7 +309,7 @@ export const getMentorDashboardStats = functions.https.onCall(async (data, conte
         pendingQuery.get(),
         acceptedQuery.get(),
         totalSessionsQuery.get(),
-        upcomingSessionsSnapshot.get()
+        upcomingSessionsQuery.get()
     ]);
 
     return {
