@@ -147,7 +147,7 @@ function MentorConnectPage() {
         const participants = [user.uid, seeker.id].sort();
         const q = query(
             messagesCollection,
-            where('participants', '==', participants),
+            where('participants', 'array-contains', user.uid),
             orderBy('timestamp', 'desc'),
             limit(1)
         );
@@ -198,7 +198,7 @@ function MentorConnectPage() {
     const participants = [user.uid, selectedSeeker.id].sort();
     const q = query(
         messagesCollection,
-        where('participants', '==', participants),
+        where('participants', 'array-contains', user.uid),
         orderBy('timestamp', 'asc')
     );    const unsubscribe = onSnapshot(q, (snapshot) => {
         const newMessages = snapshot.docs
