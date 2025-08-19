@@ -56,14 +56,56 @@ const MentorDashboard = ({ user }: { user: UserProfile }) => {
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!user?.uid) return;
+      
       setLoading(true);
       try {
-        // Use Firebase callable function (Spark plan compatible)
-        const { getFunctions, httpsCallable } = await import('firebase/functions');
-        const functions = getFunctions(app);
-        const getMentorDashboardStats = httpsCallable(functions, 'getMentorDashboardStats');
-        const result = await getMentorDashboardStats();
-        setStats(result.data as MentorStats);
+        const db = getFirestore(app);
+        const mentorshipsRef = collection(db, 'mentorships');
+        
+        // Get active mentees
+        const activeMenteesQuery = query(
+          mentorshipsRef,
+          where('mentorId', '==', user.uid),
+          where('status', '==', 'active')
+        );
+        const activeSnapshot = await getDocs(activeMenteesQuery);
+        const activeMentees = activeSnapshot.size;
+
+        // Get pending requests
+        const pendingQuery = query(
+          mentorshipsRef,
+          where('mentorId', '==', user.uid),
+          where('status', '==', 'pending')
+        );
+        const pendingSnapshot = await getDocs(pendingQuery);
+        const pendingRequests = pendingSnapshot.size;
+
+        // Get upcoming sessions (you may need to adjust this based on your data structure)
+        const now = new Date();
+        const sessionsRef = collection(db, 'sessions');
+        const upcomingQuery = query(
+          sessionsRef,
+          where('mentorId', '==', user.uid),
+          where('date', '>', now)
+        );
+        const upcomingSnapshot = await getDocs(upcomingQuery);
+        const upcomingSessions = upcomingSnapshot.size;
+
+        // Get total sessions
+        const totalSessionsQuery = query(
+          sessionsRef,
+          where('mentorId', '==', user.uid)
+        );
+        const totalSessionsSnapshot = await getDocs(totalSessionsQuery);
+        const totalSessions = totalSessionsSnapshot.size;
+
+        setStats({
+          activeMentees,
+          pendingRequests,
+          upcomingSessions,
+          totalSessions
+        });
       } catch (error: any) {
         console.error("Error fetching mentor stats:", error);
         toast({
@@ -76,7 +118,7 @@ const MentorDashboard = ({ user }: { user: UserProfile }) => {
       }
     };
     fetchStats();
-  }, [toast]);
+  }, [toast, user?.uid]);
 
   return (
     <Card className="glass-card bg-primary/5 border-primary/20">
@@ -159,14 +201,14 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     }
 
     switch (user.role) {
-        case 'mentor':
+        case 'MENTOR':
             return <MentorDashboard user={user} />;
-        case 'seeker':
+        case 'SEEKER':
             return <SeekerDashboard />;
-        case 'techie':
+        case 'TECHIE':
             return <TechieDashboard />;
-        case 'admin':
-        case 'member':
+        case 'ADMIN':
+        case 'MEMBER':
         default:
             return <MemberDashboard />;
     }

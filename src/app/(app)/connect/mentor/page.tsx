@@ -60,23 +60,47 @@ function MentorConnectPage() {
 
         // Fetch all users with the 'SEEKER' role
     useEffect(() => {
-        if(!user || user.role !== 'MENTOR') return;
+        console.log('Fetching seekers effect triggered', { user });
+        if(!user || user.role.toUpperCase() !== 'MENTOR') {
+            console.log('User validation failed', { user, roleCheck: { userRole: user?.role, expected: 'MENTOR' } });
+            return;
+        }
 
         setLoadingSeekers(true);
+        console.log('Starting to fetch seekers');
         const db = getFirestore(app);
         const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where('role', '==', 'SEEKER'));        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const seekerList = snapshot.docs.map(doc => ({
-                id: doc.data().uid,
-                name: doc.data().name,
-                avatar: doc.data().avatar,
-                dataAiHint: doc.data().dataAiHint || '',
-                lastMessage: 'Start a conversation...',
-                lastMessageTime: '',
-                online: true, // Placeholder
-            } as ChatUser));
+        // Query for both uppercase and lowercase seeker roles to be safe
+        const q = query(
+            usersCollection, 
+            where('role', 'in', ['SEEKER', 'seeker'])
+        );
+        console.log('Query created for seekers', { query: 'role in ["SEEKER", "seeker"]' });        const unsubscribe = onSnapshot(q, (snapshot) => {
+            console.log('Got seekers snapshot', { size: snapshot.size });
+            const seekerList = snapshot.docs.map(doc => {
+                const data = doc.data();
+                console.log('Processing seeker doc', { uid: data.uid, role: data.role });
+                return {
+                    id: data.uid,
+                    name: data.name,
+                    avatar: data.avatar,
+                    dataAiHint: data.dataAiHint || '',
+                    lastMessage: 'Start a conversation...',
+                    lastMessageTime: '',
+                    online: true, // Placeholder
+                } as ChatUser;
+            });
+            console.log('Processed seekers list', { count: seekerList.length });
             setSeekers(seekerList);
             setLoadingSeekers(false);
+        }, (error) => {
+            console.error('Error in seekers snapshot:', error);
+            setLoadingSeekers(false);
+            toast({
+                title: "Error Loading Seekers",
+                description: error.message,
+                variant: "destructive"
+            });
         });
         return () => unsubscribe();
     }, [user]);
@@ -90,8 +114,19 @@ function MentorConnectPage() {
 
    // Fetch last message for each seeker
    useEffect(() => {
-    if (!user || seekers.length === 0) return;
+    console.log('Fetching last messages effect triggered', { 
+        hasUser: !!user, 
+        seekersCount: seekers.length 
+    });
+    if (!user || seekers.length === 0) {
+        console.log('Skipping last messages fetch', { 
+            hasUser: !!user, 
+            seekersCount: seekers.length 
+        });
+        return;
+    }
     const db = getFirestore(app);
+    console.log('Starting to fetch last messages for seekers');
 
     const unsubscribes = seekers.map(seeker => {
         const messagesCollection = collection(db, 'messages');
@@ -127,9 +162,20 @@ function MentorConnectPage() {
 
   // Fetch messages for the selected seeker
   useEffect(() => {
-    if (!selectedSeeker || !user) return;
+    console.log('Messages fetch effect triggered', { 
+        hasSelectedSeeker: !!selectedSeeker, 
+        hasUser: !!user 
+    });
+    if (!selectedSeeker || !user) {
+        console.log('Skipping messages fetch', { 
+            hasSelectedSeeker: !!selectedSeeker, 
+            hasUser: !!user 
+        });
+        return;
+    }
 
     setLoadingMessages(true);
+    console.log('Starting to fetch messages for seeker:', selectedSeeker.name);
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
     
@@ -329,6 +375,13 @@ function MentorConnectPage() {
 
 // Wrapper component for AuthGuard
 export default function MentorConnectPageWrapper() {
+  const { user, loading } = useAuth();
+  console.log('MentorConnectPageWrapper render', { 
+    hasUser: !!user, 
+    loading, 
+    userRole: user?.role 
+  });
+
   return (
     <AuthGuard requiredRole="MENTOR">
       <MentorConnectPage />

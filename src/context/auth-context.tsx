@@ -109,14 +109,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists()) {
-              const userProfile = { uid: firebaseUser.uid, ...userDoc.data() } as UserProfile;
+              const data = userDoc.data();
+              const userProfile = { 
+                uid: firebaseUser.uid, 
+                ...data,
+                role: (data.role || 'MEMBER').toUpperCase() as UserRole 
+              } as UserProfile;
+              console.log('Setting user with role:', userProfile.role);
               setUser(userProfile);
           } else {
             setUser({ // Set a temporary user to avoid being logged out
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 name: firebaseUser.displayName,
-                role: 'MEMBER' // Default role
+                role: 'MEMBER' as UserRole // Default role
             });
           }
         } catch (error) {

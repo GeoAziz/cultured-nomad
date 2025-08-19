@@ -32,22 +32,23 @@ export default function LoginPage() {
     
     await login(email, password, {
       onSuccess: (role) => {
-        let destination = '/dashboard';
+        // Default to member dashboard
+        let destination = '/dashboard/member';
         switch (role) {
-          case 'admin':
+          case 'ADMIN':
             destination = '/admin/dashboard';
             break;
-          case 'mentor':
+          case 'MENTOR':
             destination = '/dashboard/mentor';
             break;
-          case 'seeker':
+          case 'SEEKER':
             destination = '/dashboard/seeker';
             break;
-          case 'member':
-             destination = '/dashboard/member';
+          case 'MEMBER':
+            destination = '/dashboard/member';
             break;
-          case 'techie':
-             destination = '/dashboard/techie';
+          case 'TECHIE':
+            destination = '/dashboard/techie';
             break;
         }
         router.push(destination);
