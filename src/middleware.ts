@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth, db } from '@/lib/firebase/firebase_config';
-import { doc, getDoc } from 'firebase/firestore';
+import { adminAuth, adminDb } from '@/lib/firebase/firebase-admin';
 import { Role } from '@/types/auth';
 
 // Define route access patterns
@@ -37,7 +36,7 @@ const PUBLIC_ROUTES = [
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Skip middleware for static assets (js, css, images, fonts, etc.)
+  // Skip middleware for static assets
   const assetExtensions = ['.js', '.css', '.ico', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.woff', '.woff2', '.ttf', '.map', '.json'];
   if (assetExtensions.some(ext => path.endsWith(ext))) {
     return NextResponse.next();
@@ -48,64 +47,78 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get the session data
-  const sessionData = request.cookies.get('session')?.value;
+  // Get the Firebase Auth token from cookie
+  const authToken = request.cookies.get('firebase-auth-token')?.value;
 
-  // If no session, redirect to login
-  if (!sessionData && !PUBLIC_ROUTES.includes(path)) {
+  // If no auth token and not a public route, redirect to login
+  if (!authToken && !PUBLIC_ROUTES.includes(path)) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Special handling for /connect root path
-  if (path === '/connect' && sessionData) {
+  let userId: string | null = null;
+  
+  if (authToken) {
     try {
-      const userDoc = await getDoc(doc(db, 'users', sessionData));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        switch(userData.role.toUpperCase() as Role) {
-          case 'MENTOR':
-            return NextResponse.redirect(new URL('/connect/mentor', request.url));
-          case 'SEEKER':
-            return NextResponse.redirect(new URL('/connect/seeker', request.url));
-          default:
-            return NextResponse.next();
-        }
-      }
+      const decodedToken = await adminAuth.verifyIdToken(authToken);
+      userId = decodedToken.uid;
     } catch (error) {
-      console.error('Error in middleware:', error);
+      console.error('Error verifying auth token:', error);
+      return NextResponse.redirect(new URL('/login', request.url));
     }
   }
 
-  // Check role-based access for protected routes
-  if (sessionData) {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', sessionData));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        const userRole = userData.role.toUpperCase() as Role;
+  if (!userId) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
 
-        // Check if trying to access a protected route
-        const protectedRoute = Object.entries(ROUTE_ACCESS).find(([route]) =>
-          path.startsWith(route)
-        );
-
-        if (protectedRoute) {
-          const [route, allowedRoles] = protectedRoute;
-          if (!allowedRoles.includes(userRole)) {
-            // Redirect to appropriate dashboard based on role
-            return NextResponse.redirect(new URL(`/dashboard/${userRole.toLowerCase()}`, request.url));
-          }
-        }
-
-        // Allow access to shared routes for authenticated users
-        if (SHARED_ROUTES.some(route => path.startsWith(route))) {
-          return NextResponse.next();
-        }
-      }
-    } catch (error) {
-      console.error('Error in middleware:', error);
+  try {
+    // Get user data from Firestore
+    const userDoc = await adminDb.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
+
+    const userData = userDoc.data();
+    if (!userData) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    const userRole = userData.role.toUpperCase() as Role;
+
+    // Special handling for /connect root path
+    if (path === '/connect') {
+      switch(userRole) {
+        case 'MENTOR':
+          return NextResponse.redirect(new URL('/connect/mentor', request.url));
+        case 'SEEKER':
+          return NextResponse.redirect(new URL('/connect/seeker', request.url));
+        default:
+          return NextResponse.next();
+      }
+    }
+
+    // Check if trying to access a protected route
+    const protectedRoute = Object.entries(ROUTE_ACCESS).find(([route]) =>
+      path.startsWith(route)
+    );
+
+    if (protectedRoute) {
+      const [route, allowedRoles] = protectedRoute;
+      if (!allowedRoles.includes(userRole)) {
+        // Redirect to appropriate dashboard based on role
+        return NextResponse.redirect(new URL(`/dashboard/${userRole.toLowerCase()}`, request.url));
+      }
+    }
+
+    // Allow access to shared routes for authenticated users
+    if (SHARED_ROUTES.some(route => path.startsWith(route))) {
+      return NextResponse.next();
+    }
+    
+  } catch (error) {
+    console.error('Error in middleware:', error);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return NextResponse.next();

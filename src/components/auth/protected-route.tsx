@@ -12,6 +12,7 @@ export function ProtectedRouteLayout({ children }: { children: React.ReactNode }
     redirect('/login');
   }
 
+  // Always use uppercase for role checks in navigation
   if (!isAuthorized) {
     redirect('/dashboard'); // Redirect to dashboard if user doesn't have access to this route
   }

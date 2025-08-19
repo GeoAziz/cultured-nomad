@@ -20,13 +20,14 @@ import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/fir
 import { app, auth, db } from '@/lib/firebase/firebase_config';
 import { useRouter } from 'next/navigation';
 
-export type UserRole = 'member' | 'admin' | 'mentor' | 'seeker' | 'techie';
+export type UserRole = 'MEMBER' | 'ADMIN' | 'MENTOR' | 'SEEKER' | 'TECHIE';
 
 export interface UserProfile {
     uid: string;
     email: string | null;
     name: string | null;
-    role: 'member' | 'admin' | 'mentor' | 'seeker' | 'techie';
+    role: UserRole;
+    bio?: string;
     avatar?: string;
     industry?: string;
     expertise?: string[];
@@ -99,6 +100,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Set the Firebase Auth token cookie
+        const token = await firebaseUser.getIdToken();
+        document.cookie = `firebase-auth-token=${token}; path=/;`;
+        
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         try {
           const userDoc = await getDoc(userDocRef);
@@ -111,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 name: firebaseUser.displayName,
-                role: 'member' // Default role
+                role: 'MEMBER' // Default role
             });
           }
         } catch (error) {
@@ -140,7 +145,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        const userProfile = { uid: userCredential.user.uid, ...userDoc.data() } as UserProfile;
+        const userData = userDoc.data();
+        const userProfile = { 
+          uid: userCredential.user.uid, 
+          ...userData,
+          role: userData.role.toUpperCase() as UserRole
+        } as UserProfile;
         callbacks.onSuccess(userProfile.role);
       } else {
         await signOut(auth);
@@ -177,7 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
              name,
              email,
              avatar: `https://placehold.co/150x150.png`,
-             role: "member", // Default role
+             role: "MEMBER", // Default role
              bio: bio || "New member of the Cultured Nomads sisterhood!",
              interests: interests || [],
           };
@@ -213,6 +223,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
+    // Clear the auth token cookie
+    document.cookie = 'firebase-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     setUser(null);
   };
 

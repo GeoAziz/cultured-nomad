@@ -18,7 +18,11 @@ export function AuthGuard({
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
-    } else if (!loading && requiredRole && user?.role !== requiredRole) {
+    } else if (
+      !loading &&
+      requiredRole &&
+      user?.role?.toUpperCase() !== requiredRole?.toUpperCase()
+    ) {
       router.push('/dashboard');
     }
   }, [user, loading, router, requiredRole]);
@@ -31,7 +35,7 @@ export function AuthGuard({
     );
   }
 
-  if (requiredRole && user.role !== requiredRole) {
+  if (requiredRole && user.role?.toUpperCase() !== requiredRole?.toUpperCase()) {
     return null;
   }
 

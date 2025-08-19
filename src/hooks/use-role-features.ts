@@ -22,7 +22,6 @@ export interface RoleFeatures {
 
 export const useRoleFeatures = (): RoleFeatures => {
   const { user } = useAuth();
-  
   if (!user) {
     return {
       canMentor: false,
@@ -45,8 +44,10 @@ export const useRoleFeatures = (): RoleFeatures => {
     stories: true,
   };
 
-  switch (user.role) {
-    case 'admin':
+  const role = user.role?.toUpperCase();
+
+  switch (role) {
+    case 'ADMIN':
       return {
         canMentor: true,
         canSeekMentorship: false,
@@ -61,7 +62,7 @@ export const useRoleFeatures = (): RoleFeatures => {
         widgets: ['AdminStats', 'UserManagement', 'Analytics'],
       };
 
-    case 'mentor':
+    case 'MENTOR':
       return {
         canMentor: true,
         canSeekMentorship: false,
@@ -76,7 +77,7 @@ export const useRoleFeatures = (): RoleFeatures => {
         widgets: ['MentorStats', 'Sessions', 'Resources'],
       };
 
-    case 'seeker':
+    case 'SEEKER':
       return {
         canMentor: false,
         canSeekMentorship: true,
@@ -91,7 +92,7 @@ export const useRoleFeatures = (): RoleFeatures => {
         widgets: ['MentorMatch', 'Goals', 'Learning'],
       };
 
-    case 'techie':
+    case 'TECHIE':
       return {
         canMentor: false,
         canSeekMentorship: false,
