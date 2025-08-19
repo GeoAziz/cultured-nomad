@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/server/firebase-admin';
 import { Role } from '@/types/auth';
 
 // Define route access patterns
