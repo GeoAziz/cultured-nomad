@@ -58,16 +58,14 @@ function MentorConnectPage() {
         scrollToBottom()
     }, [messages]);
 
-    // Fetch all users with the 'seeker' role
+        // Fetch all users with the 'SEEKER' role
     useEffect(() => {
-        if(!user || user.role !== 'mentor') return;
+        if(!user || user.role !== 'MENTOR') return;
 
         setLoadingSeekers(true);
         const db = getFirestore(app);
         const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where('role', '==', 'seeker'));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const q = query(usersCollection, where('role', '==', 'SEEKER'));        const unsubscribe = onSnapshot(q, (snapshot) => {
             const seekerList = snapshot.docs.map(doc => ({
                 id: doc.data().uid,
                 name: doc.data().name,
@@ -332,7 +330,7 @@ function MentorConnectPage() {
 // Wrapper component for AuthGuard
 export default function MentorConnectPageWrapper() {
   return (
-    <AuthGuard requiredRole="mentor">
+    <AuthGuard requiredRole="MENTOR">
       <MentorConnectPage />
     </AuthGuard>
   );

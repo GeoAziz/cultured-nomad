@@ -47,31 +47,46 @@ export default function MentorDashboardStats() {
         const db = getFirestore(app);
         const mentorId = user.uid;
 
+        // Create a single batch of parallel queries
         const mentorshipsRef = collection(db, "mentorships");
         const sessionsRef = collection(db, "mentoring_sessions");
 
-        const pendingQuery = query(mentorshipsRef, where('mentorId', '==', mentorId), where('status', '==', 'pending'));
-        const acceptedQuery = query(mentorshipsRef, where('mentorId', '==', mentorId), where('status', '==', 'accepted'));
-        const totalSessionsQuery = query(sessionsRef, where('mentorId', '==', mentorId));
-        const upcomingSessionsQuery = query(sessionsRef, where('mentorId', '==', mentorId), where('startTime', '>=', new Date()));
-        
-        const [
-            pendingSnapshot, 
-            acceptedSnapshot,
-            totalSessionsSnapshot,
-            upcomingSessionsSnapshot
-        ] = await Promise.all([
+        // Create the queries with proper indexes
+        const pendingQuery = query(
+          mentorshipsRef,
+          where('mentorId', '==', mentorId),
+          where('status', '==', 'pending')
+        );
+        const acceptedQuery = query(
+          mentorshipsRef,
+          where('mentorId', '==', mentorId),
+          where('status', '==', 'accepted')
+        );
+        const totalSessionsQuery = query(
+          sessionsRef,
+          where('mentorId', '==', mentorId)
+        );
+        const upcomingSessionsQuery = query(
+          sessionsRef,
+          where('mentorId', '==', mentorId),
+          where('startTime', '>=', Timestamp.fromDate(new Date()))
+        );
+
+        // Execute all queries in parallel
+        const [pendingSnapshot, acceptedSnapshot, totalSessionsSnapshot, upcomingSessionsSnapshot] = 
+          await Promise.all([
             getDocs(pendingQuery),
             getDocs(acceptedQuery),
             getDocs(totalSessionsQuery),
             getDocs(upcomingSessionsQuery)
-        ]);
+          ]);
 
+        // Update stats
         setStats({
-            pendingRequests: pendingSnapshot.size,
-            activeMentees: acceptedSnapshot.size,
-            totalSessions: totalSessionsSnapshot.size,
-            upcomingSessions: upcomingSessionsSnapshot.size,
+          pendingRequests: pendingSnapshot.size,
+          activeMentees: acceptedSnapshot.size,
+          totalSessions: totalSessionsSnapshot.size,
+          upcomingSessions: upcomingSessionsSnapshot.size,
         });
 
       } catch (error: any) {
