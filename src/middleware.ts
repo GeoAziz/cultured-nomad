@@ -20,21 +20,33 @@ export async function middleware(request: NextRequest) {
 
   // Get the Firebase Auth token from the cookie
   const authToken = request.cookies.get('firebase-auth-token')?.value;
+  const tokenExpiry = request.cookies.get('firebase-token-expiry')?.value;
+  const now = Date.now();
 
   const isPublicRoute = PUBLIC_ROUTES.some(route => path === route);
   const isAdminAuthRoute = path === '/admin/login' || path === '/admin';
 
-  // If the user is not authenticated
-  if (!authToken) {
+  // Check if token is missing or expired
+  const isValidToken = authToken && tokenExpiry && parseInt(tokenExpiry) > now;
+
+  // If the user is not authenticated or token is expired
+  if (!isValidToken) {
+    // Clear any existing invalid tokens
+    const response = NextResponse.redirect(
+      new URL(isPublicRoute ? path : '/login', request.url)
+    );
+    response.cookies.delete('firebase-auth-token');
+    response.cookies.delete('firebase-token-expiry');
+
     // If they are trying to access a protected route, redirect to the appropriate login
     if (!isPublicRoute) {
       if (path.startsWith('/admin/')) {
         return NextResponse.redirect(new URL('/admin/login', request.url));
       }
-      return NextResponse.redirect(new URL('/login', request.url));
+      return response;
     }
-    // Otherwise, allow access to the public route
-    return NextResponse.next();
+    // Otherwise, allow access to the public route with cleared tokens
+    return isPublicRoute ? NextResponse.next() : response;
   }
 
   // If the user IS authenticated

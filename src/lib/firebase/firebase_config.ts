@@ -27,9 +27,8 @@ export const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Auth with persistence
 export const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence)
-  .then(() => console.log('Firebase Auth persistence set to local'))
-  .catch(error => console.error('Error setting auth persistence:', error));
+// Don't set persistence, let it use the default inMemory persistence
+// This will require users to login each time they close/reopen the browser
 
 // Initialize Firestore
 export const db = getFirestore(app);

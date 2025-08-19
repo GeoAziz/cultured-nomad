@@ -8,8 +8,8 @@
  * - MatchMentorOutput - The return type for the matchMentor function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '../genkit';
+import { z } from 'zod';
 
 // Define the schema for a single mentor
 const MentorSchema = z.object({
@@ -75,7 +75,7 @@ const mentorMatcherFlow = ai.defineFlow(
     inputSchema: MatchMentorInputSchema,
     outputSchema: MatchMentorOutputSchema,
   },
-  async input => {
+  async (input: MatchMentorInput) => {
     // If there are no mentors, we can't make a match.
     if (input.mentors.length === 0) {
         throw new Error("No mentors available to match.");

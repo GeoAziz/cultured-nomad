@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth, UserProfile } from '@/hooks/use-auth';
 import { Users, Target, Sparkles, Clock, Wand2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 import { useState, useEffect } from 'react';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { matchMentor, MatchMentorInput } from 'functions/src/ai/flows/mentor-matcher-flow';
+import { matchMentor, MatchMentorInput } from '@/ai/flows/mentor-matcher-flow';
 import Link from 'next/link';
 
 interface Mentor extends UserProfile {

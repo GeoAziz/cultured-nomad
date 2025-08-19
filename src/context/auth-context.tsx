@@ -100,9 +100,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Set the Firebase Auth token cookie
+        // Set the Firebase Auth token cookie with 1-hour expiry
         const token = await firebaseUser.getIdToken();
+        const expiry = Date.now() + (60 * 60 * 1000); // 1 hour from now
         document.cookie = `firebase-auth-token=${token}; path=/;`;
+        document.cookie = `firebase-token-expiry=${expiry}; path=/;`;
         
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         try {

@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Smile, Loader2 } from 'lucide-react';
+import { Send, Smile, Loader2, VideoIcon, PhoneIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -17,6 +17,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { useWebRTC } from '@/hooks/use-webrtc';
+import { CallModal } from '@/components/calls/call-modal';
 
 interface ChatUser {
     id: string;
@@ -49,6 +51,17 @@ function MentorConnectPage() {
     const [isSending, setIsSending] = useState(false);
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // WebRTC integration
+    const {
+        startCall,
+        endCall,
+        localStream,
+        remoteStream,
+        isCallActive,
+        callType,
+        error: callError
+    } = useWebRTC(user?.uid || '');
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -130,11 +143,13 @@ function MentorConnectPage() {
 
     const unsubscribes = seekers.map(seeker => {
         const messagesCollection = collection(db, 'messages');
+        // Create participants array in sorted order
+        const participants = [user.uid, seeker.id].sort();
         const q = query(
             messagesCollection,
-            where('participants', 'array-contains', user.uid),
+            where('participants', '==', participants),
             orderBy('timestamp', 'desc'),
-            limit(10)
+            limit(1)
         );
 
         return onSnapshot(q, (snapshot) => {
@@ -160,7 +175,7 @@ function MentorConnectPage() {
 }, [seekers, user]);
 
 
-  // Fetch messages for the selected seeker
+   // Fetch messages for the selected seeker
   useEffect(() => {
     console.log('Messages fetch effect triggered', { 
         hasSelectedSeeker: !!selectedSeeker, 
@@ -179,13 +194,13 @@ function MentorConnectPage() {
     const db = getFirestore(app);
     const messagesCollection = collection(db, 'messages');
     
+    // Create participants array in sorted order to ensure consistent querying
+    const participants = [user.uid, selectedSeeker.id].sort();
     const q = query(
         messagesCollection,
-        where('participants', 'array-contains', user.uid),
+        where('participants', '==', participants),
         orderBy('timestamp', 'asc')
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    );    const unsubscribe = onSnapshot(q, (snapshot) => {
         const newMessages = snapshot.docs
             .map((doc: any) => {
                 const data = doc.data();
@@ -236,6 +251,35 @@ function MentorConnectPage() {
         setIsSending(false);
     }
   }
+
+  // Handle call functionality
+  const handleStartCall = async (seekerId: string, type: 'audio' | 'video') => {
+    try {
+      console.log('Initiating call:', { seekerId, type });
+      
+      // Show immediate feedback
+      toast({
+        title: `Starting ${type} call`,
+        description: `Connecting with ${selectedSeeker?.name}...`,
+        variant: "default"
+      });
+
+      await startCall(seekerId, type);
+      
+      console.log('Call initiated:', { 
+        isCallActive,
+        hasLocalStream: !!localStream,
+        hasRemoteStream: !!remoteStream
+      });
+    } catch (error: any) {
+      console.error('Call failed:', error);
+      toast({
+        title: "Call Failed",
+        description: error.message || "Could not start the call. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
         <div className="h-[calc(100vh-8rem)]">
@@ -295,12 +339,32 @@ function MentorConnectPage() {
             <Card className="glass-card md:col-span-2 lg:col-span-3 p-0 flex flex-col h-full">
                 {selectedSeeker ? (
                     <>
-                    <div className="p-4 border-b border-primary/20 flex items-center gap-3">
-                         <Avatar>
-                            <AvatarImage src={selectedSeeker.avatar} alt={selectedSeeker.name} />
-                            <AvatarFallback>{selectedSeeker.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <h3 className="font-headline text-xl">{selectedSeeker.name}</h3>
+                    <div className="p-4 border-b border-primary/20 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Avatar>
+                                <AvatarImage src={selectedSeeker.avatar} alt={selectedSeeker.name} />
+                                <AvatarFallback>{selectedSeeker.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <h3 className="font-headline text-xl">{selectedSeeker.name}</h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="rounded-full hover:bg-blue-500/10 hover:text-blue-500"
+                                onClick={() => handleStartCall(selectedSeeker.id, 'audio')}
+                            >
+                                <PhoneIcon className="h-5 w-5" />
+                            </Button>
+                            <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="rounded-full hover:bg-blue-500/10 hover:text-blue-500"
+                                onClick={() => handleStartCall(selectedSeeker.id, 'video')}
+                            >
+                                <VideoIcon className="h-5 w-5" />
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex-1 p-6 space-y-4 overflow-y-auto">
@@ -369,6 +433,23 @@ function MentorConnectPage() {
                 )}
             </Card>
             </div>
+
+            {/* Call Modal */}
+            <CallModal
+                isOpen={isCallActive}
+                callType={callType || 'audio'}
+                remoteStream={remoteStream}
+                localStream={localStream}
+                onEndCall={endCall}
+                peerName={selectedSeeker?.name}
+            />
+            
+            {/* Call initiation toast for better UX */}
+            {isCallActive && !remoteStream && (
+                <div className="fixed bottom-4 right-4 bg-black/80 text-white px-4 py-2 rounded-full animate-pulse">
+                    Establishing connection...
+                </div>
+            )}
         </div>
   );
 }

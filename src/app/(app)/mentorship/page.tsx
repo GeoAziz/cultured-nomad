@@ -27,7 +27,7 @@ import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, UserProfile } from '@/hooks/use-auth';
-import { matchMentor } from 'functions/src/ai/flows/mentor-matcher-flow';
+import { matchMentor } from '@/ai/flows/mentor-matcher-flow';
 
 
 const containerVariants = {
@@ -205,7 +205,7 @@ export default function MentorshipPage() {
                 <p className="mt-4">{matchOfTheWeek.bio}</p>
                 <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="glow-button mt-6 w-fit" disabled={user?.role === 'mentor'}>
+                        <Button className="glow-button mt-6 w-fit" disabled={user?.role?.toLowerCase() === 'mentor'}>
                             <Wand2 className="mr-2 h-4 w-4" />
                             Request Mentorship
                         </Button>
