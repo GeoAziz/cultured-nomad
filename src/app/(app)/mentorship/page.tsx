@@ -27,7 +27,7 @@ import { app } from '@/lib/firebase/firebase_config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, UserProfile } from '@/hooks/use-auth';
-import { matchMentor } from '@/ai/flows/mentor-matcher-flow';
+import { matchMentor } from 'functions/src/ai/flows/mentor-matcher-flow';
 
 
 const containerVariants = {

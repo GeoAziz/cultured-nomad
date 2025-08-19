@@ -9,8 +9,20 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.experiments = { ...config.experiments, asyncWebAssembly: true };
+
+    if (!isServer) {
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            fs: false,
+            net: false,
+            tls: false,
+        };
+    }
+    
+    config.externals.push('firebase-admin');
+
     return config;
   },
   poweredByHeader: false,

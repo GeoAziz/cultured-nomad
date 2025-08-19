@@ -1,7 +1,7 @@
 
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
-import { summarizeStory } from "../../src/ai/flows/story-summarizer-flow";
+import { summarizeStory } from "./ai/flows/story-summarizer-flow";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -178,7 +178,7 @@ export const requestMentorship = functions.https.onCall(async (data, context) =>
     const mentorRef = db.collection("users").doc(mentorId);
     const mentorDoc = await mentorRef.get();
 
-    if (!mentorDoc.exists || !mentorDoc.data()?.isMentor) {
+    if (!mentorDoc.exists() || !mentorDoc.data()?.isMentor) {
          throw new functions.https.HttpsError("not-found", "Mentor not found or user is not a mentor.");
     }
 
@@ -284,11 +284,82 @@ export const createBroadcast = functions.https.onCall(async (data, context) => {
         message,
         type, // 'info', 'warning', 'success'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: context.auth?.uid || "",
+        createdBy: context.auth.uid,
     });
 
     return { status: "success", message: "Broadcast created." };
 });
+
+/**
+ * Gets statistics for the mentor dashboard.
+ */
+export const getMentorDashboardStats = functions.https.onCall(async (data, context) => {
+    console.log('[getMentorDashboardStats] Incoming request:', { 
+        data,
+        contextAuth: context.auth,
+        headers: context.rawRequest ? context.rawRequest.headers : 'no rawRequest',
+        origin: context.rawRequest ? context.rawRequest.headers['origin'] : 'no origin',
+        referer: context.rawRequest ? context.rawRequest.headers['referer'] : 'no referer',
+    });
+    
+    if (!context.auth) {
+        console.error('[getMentorDashboardStats] No auth context!');
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+    }
+    
+    const mentorId = context.auth.uid;
+    console.log(`[getMentorDashboardStats] Function called for mentorId: ${mentorId}`);
+
+    try {
+        const mentorshipsRef = db.collection("mentorships");
+        const sessionsRef = db.collection("mentoring_sessions");
+
+        // Queries
+        const pendingQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'pending');
+        const acceptedQuery = mentorshipsRef.where('mentorId', '==', mentorId).where('status', '==', 'accepted');
+        const totalSessionsQuery = sessionsRef.where('mentorId', '==', mentorId);
+        
+        // Firestore doesn't support inequality filters on different fields, so we filter in code.
+        const upcomingSessionsQuery = sessionsRef
+            .where('mentorId', '==', mentorId)
+            .where('startTime', '>=', new Date())
+            .orderBy('startTime', 'asc');
+        
+        const [
+            pendingSnapshot, 
+            acceptedSnapshot,
+            totalSessionsSnapshot,
+            upcomingSessionsSnapshot
+        ] = await Promise.all([
+            pendingQuery.get(),
+            acceptedQuery.get(),
+            totalSessionsQuery.get(),
+            upcomingSessionsQuery.get()
+        ]);
+        
+        const stats = {
+            pendingRequests: pendingSnapshot.size,
+            activeMentees: acceptedSnapshot.size,
+            totalSessions: totalSessionsSnapshot.size,
+            upcomingSessions: upcomingSessionsSnapshot.size,
+        };
+        
+        console.log(`[getMentorDashboardStats] Successfully calculated stats for ${mentorId}:`, stats);
+
+        return stats;
+        
+    } catch (error) {
+        console.error(`[getMentorDashboardStats] Error for mentorId: ${mentorId}`, error);
+        if (error instanceof Error) {
+            // Throw a more specific error to the client
+            throw new functions.https.HttpsError("internal", `An error occurred while fetching mentor stats: ${error.message}`);
+        }
+        // Generic error for unknown issues
+        throw new functions.https.HttpsError("internal", "An unknown error occurred while fetching mentor stats.");
+    }
+});
+
+
 
 /**
  * A placeholder callable function to get a daily prompt.

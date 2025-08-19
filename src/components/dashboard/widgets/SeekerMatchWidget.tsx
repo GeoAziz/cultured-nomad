@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { matchMentor, MatchMentorInput } from '@/ai/flows/mentor-matcher-flow';
+import { matchMentor, MatchMentorInput } from 'functions/src/ai/flows/mentor-matcher-flow';
 import Link from 'next/link';
 
 interface Mentor extends UserProfile {
