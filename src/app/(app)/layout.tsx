@@ -13,23 +13,31 @@ function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    // Only perform redirects once the auth state is fully loaded
+    if (!loading) {
+      if (!user) {
+        // If not logged in and not on a public page (though none should exist here), redirect
+        router.push('/login');
+      }
     }
   }, [user, loading, router, pathname]);
 
+  // While loading, show a spinner to prevent rendering children, which might have their own auth checks
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  // If loading is complete and still no user, it means the redirect is in progress.
+  // Returning null prevents a flash of the child layout.
   if (!user) {
     return null;
   }
   
+  // If loading is complete and we have a user, render the protected layout
   return (
       <div className="flex min-h-screen bg-background">
         <MainSidebar />

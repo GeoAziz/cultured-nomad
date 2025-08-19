@@ -50,8 +50,7 @@ export default function LoginPage() {
              destination = '/dashboard/techie';
             break;
         }
-        // Use window.location.href for a full page reload to ensure auth state is updated globally.
-        window.location.href = destination;
+        router.push(destination);
       },
       onError: (err) => {
         setError(err);
