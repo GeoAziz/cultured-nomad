@@ -105,31 +105,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const expiry = Date.now() + (60 * 60 * 1000); // 1 hour from now
         document.cookie = `firebase-auth-token=${token}; path=/;`;
         document.cookie = `firebase-token-expiry=${expiry}; path=/;`;
-        
+
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         try {
-          const userDoc = await getDoc(userDocRef);
-
+          let userDoc = await getDoc(userDocRef);
+          if (!userDoc.exists()) {
+            // Auto-create user document with default values
+            const defaultProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName,
+              role: 'MEMBER',
+              avatar: firebaseUser.photoURL || `https://placehold.co/150x150.png`,
+              interests: [],
+              joinedAt: new Date(),
+            };
+            await setDoc(userDocRef, {
+              ...defaultProfile,
+              joinedAt: serverTimestamp(),
+              isMentor: false,
+            });
+            userDoc = await getDoc(userDocRef);
+          }
           if (userDoc.exists()) {
-              const data = userDoc.data();
-              const userProfile = { 
-                uid: firebaseUser.uid, 
-                ...data,
-                role: (data.role || 'MEMBER').toUpperCase() as UserRole 
-              } as UserProfile;
-              console.log('Setting user with role:', userProfile.role);
-              setUser(userProfile);
+            const data = userDoc.data();
+            const userProfile = {
+              uid: firebaseUser.uid,
+              ...data,
+              role: (data.role || 'MEMBER').toUpperCase() as UserRole
+            } as UserProfile;
+            console.log('Setting user with role:', userProfile.role);
+            setUser(userProfile);
           } else {
-            setUser({ // Set a temporary user to avoid being logged out
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                name: firebaseUser.displayName,
-                role: 'MEMBER' as UserRole // Default role
+            setUser({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName,
+              role: 'MEMBER' as UserRole
             });
           }
         } catch (error) {
           console.error("[AuthContext] Error fetching user document:", error);
-          setUser(null); // Explicitly set user to null on error
+          setUser(null);
         }
       } else {
         setUser(null);

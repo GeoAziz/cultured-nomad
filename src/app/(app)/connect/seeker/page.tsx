@@ -66,7 +66,7 @@ interface Message {
     participants: string[];
 }
 
-function SeekerConnectPage() {
+export default function SeekerConnectPage() {
     const { user } = useAuth();
     const [mentors, setMentors] = useState<MentorUser[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -104,9 +104,10 @@ function SeekerConnectPage() {
         setLoadingMentors(true);
         const db = getFirestore(app);
         const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where('role', 'in', ['MENTOR', 'mentor']));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const mentorList = snapshot.docs.map(doc => {
+        // Use two queries for 'MENTOR' and 'mentor' and merge results
+        const mentorsArr: MentorUser[] = [];
+        const unsubMentor = onSnapshot(query(usersCollection, where('role', '==', 'MENTOR')), (snapshot) => {
+            mentorsArr.push(...snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: data.uid,
@@ -120,11 +121,47 @@ function SeekerConnectPage() {
                     lastMessageTime: '',
                     online: true,
                 };
-            });
-            setMentors(mentorList);
+            }));
+            setMentors([...mentorsArr]);
             setLoadingMentors(false);
+        }, (error) => {
+            setLoadingMentors(false);
+            toast({
+                title: "Error Loading Mentors",
+                description: error.message,
+                variant: "destructive"
+            });
         });
-        return () => unsubscribe();
+        const unsubMentorLower = onSnapshot(query(usersCollection, where('role', '==', 'mentor')), (snapshot) => {
+            mentorsArr.push(...snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: data.uid,
+                    name: data.name,
+                    avatar: data.avatar,
+                    specialty: data.specialty || 'General Mentoring',
+                    rating: data.rating || 4.5,
+                    experience: data.experience || '5+ years',
+                    availability: data.availability || 'Available',
+                    lastMessage: 'Start a conversation...',
+                    lastMessageTime: '',
+                    online: true,
+                };
+            }));
+            setMentors([...mentorsArr]);
+            setLoadingMentors(false);
+        }, (error) => {
+            setLoadingMentors(false);
+            toast({
+                title: "Error Loading Mentors",
+                description: error.message,
+                variant: "destructive"
+            });
+        });
+        return () => {
+            unsubMentor();
+            unsubMentorLower();
+        };
     }, [user]);
 
     // Fetch last message for each mentor
@@ -142,7 +179,7 @@ function SeekerConnectPage() {
             onSnapshot(q, (snapshot) => {
                 const lastMsg = snapshot.docs
                     .map(doc => doc.data())
-                    .filter(data => data.participants.includes(mentor.id))
+                    .filter(data => data.participants && Array.isArray(data.participants) && data.participants.includes(mentor.id))
                     .sort((a, b) => b.timestamp?.toMillis?.() - a.timestamp?.toMillis?.())[0];
                 if (lastMsg) {
                     setMentors(prevMentors => prevMentors.map(m =>
@@ -153,6 +190,12 @@ function SeekerConnectPage() {
                         } : m
                     ));
                 }
+            }, (error) => {
+                toast({
+                    title: "Error Loading Last Message",
+                    description: error.message,
+                    variant: "destructive"
+                });
             });
         });
     }, [mentors, user]);

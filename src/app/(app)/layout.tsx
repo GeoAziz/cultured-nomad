@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import ToasterClient from '@/components/ui/toaster-client';
 
 function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -39,6 +40,7 @@ function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }
   
   // If loading is complete and we have a user, render the protected layout
   return (
+    <>
       <div className="flex min-h-screen bg-background">
         <MainSidebar />
         <main className="flex-1 md:pl-64">
@@ -47,6 +49,8 @@ function ProtectedRouteLayoutContent({ children }: { children: React.ReactNode }
           </div>
         </main>
       </div>
+      <ToasterClient />
+    </>
   );
 }
 

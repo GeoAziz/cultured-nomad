@@ -107,7 +107,7 @@ export const useWebRTC = (userId: string) => {
                     type: 'candidate',
                     from: userId,
                     to: recipientId,
-                    data: event.candidate,
+                    data: event.candidate.toJSON(),
                     callType: callType || 'audio',
                     timestamp: new Date()
                 };

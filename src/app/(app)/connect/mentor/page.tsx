@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Smile, Loader2, VideoIcon, PhoneIcon } from 'lucide-react';
+import { Send, Smile, Loader2, VideoIcon, PhoneIcon, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,6 +49,8 @@ function MentorConnectPage() {
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterInterests, setFilterInterests] = useState<string | null>(null);
     const { toast } = useToast();
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -85,16 +87,11 @@ function MentorConnectPage() {
         console.log('Starting to fetch seekers');
         const db = getFirestore(app);
         const usersCollection = collection(db, 'users');
-        // Query for both uppercase and lowercase seeker roles to be safe
-        const q = query(
-            usersCollection, 
-            where('role', 'in', ['SEEKER', 'seeker'])
-        );
-        console.log('Query created for seekers', { query: 'role in ["SEEKER", "seeker"]' });        const unsubscribe = onSnapshot(q, (snapshot) => {
-            console.log('Got seekers snapshot', { size: snapshot.size });
-            const seekerList = snapshot.docs.map(doc => {
+        // Use two queries for 'SEEKER' and 'seeker' and merge results
+        const seekersArr: ChatUser[] = [];
+        const unsubSeeker = onSnapshot(query(usersCollection, where('role', '==', 'SEEKER')), (snapshot) => {
+            seekersArr.push(...snapshot.docs.map(doc => {
                 const data = doc.data();
-                console.log('Processing seeker doc', { uid: data.uid, role: data.role });
                 return {
                     id: data.uid,
                     name: data.name,
@@ -102,14 +99,12 @@ function MentorConnectPage() {
                     dataAiHint: data.dataAiHint || '',
                     lastMessage: 'Start a conversation...',
                     lastMessageTime: '',
-                    online: true, // Placeholder
+                    online: true,
                 } as ChatUser;
-            });
-            console.log('Processed seekers list', { count: seekerList.length });
-            setSeekers(seekerList);
+            }));
+            setSeekers([...seekersArr]);
             setLoadingSeekers(false);
         }, (error) => {
-            console.error('Error in seekers snapshot:', error);
             setLoadingSeekers(false);
             toast({
                 title: "Error Loading Seekers",
@@ -117,7 +112,33 @@ function MentorConnectPage() {
                 variant: "destructive"
             });
         });
-        return () => unsubscribe();
+        const unsubSeekerLower = onSnapshot(query(usersCollection, where('role', '==', 'seeker')), (snapshot) => {
+            seekersArr.push(...snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: data.uid,
+                    name: data.name,
+                    avatar: data.avatar,
+                    dataAiHint: data.dataAiHint || '',
+                    lastMessage: 'Start a conversation...',
+                    lastMessageTime: '',
+                    online: true,
+                } as ChatUser;
+            }));
+            setSeekers([...seekersArr]);
+            setLoadingSeekers(false);
+        }, (error) => {
+            setLoadingSeekers(false);
+            toast({
+                title: "Error Loading Seekers",
+                description: error.message,
+                variant: "destructive"
+            });
+        });
+        return () => {
+            unsubSeeker();
+            unsubSeekerLower();
+        };
     }, [user]);
 
     // Select the first seeker by default once the list is loaded
@@ -289,51 +310,70 @@ function MentorConnectPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 h-full">
             {/* Seeker List */}
-            <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full overflow-y-auto">
-                <div className="p-4 border-b border-primary/20 sticky top-0 bg-card/50 backdrop-blur-sm">
+            <Card className="glass-card md:col-span-1 lg:col-span-1 p-0 h-full flex flex-col">
+                <div className="p-4 border-b border-primary/20 sticky top-0 bg-card/50 backdrop-blur-sm space-y-4">
                     <h3 className="font-headline text-xl">Your Seekers</h3>
+                    <div className="flex gap-2">
+                        <Input
+                            placeholder="Search seekers..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
                 </div>
-                <div className="space-y-1 p-2">
-                    {loadingSeekers ? (
-                        Array.from({length: 4}).map((_, i) => (
-                            <div key={i} className="flex items-center gap-3 p-3">
-                                <Skeleton className="h-12 w-12 rounded-full" />
-                                <div className="flex-1 space-y-2">
-                                    <Skeleton className="h-4 w-3/4" />
-                                    <Skeleton className="h-4 w-full" />
+                <div className="flex-1 overflow-y-auto">
+                    <div className="space-y-1 p-2">
+                        {loadingSeekers ? (
+                            Array.from({length: 4}).map((_, i) => (
+                                <div key={i} className="flex items-start gap-4 p-4">
+                                    <Skeleton className="h-12 w-12 rounded-full" />
+                                    <div className="flex-1 space-y-2">
+                                        <Skeleton className="h-4 w-3/4" />
+                                        <Skeleton className="h-4 w-1/2" />
+                                        <Skeleton className="h-4 w-full" />
+                                    </div>
                                 </div>
-                            </div>
-                        ))
-                    ) : seekers.length === 0 ? (
-                         <p className="text-center text-muted-foreground p-4">No seekers found.</p>
-                    ) : (
-                        seekers.map(seeker => (
-                            <button
-                                key={seeker.id}
-                                onClick={() => handleSelectSeeker(seeker)}
-                                className={cn(
-                                    "w-full text-left flex items-center gap-3 p-3 rounded-lg transition-colors",
-                                    selectedSeeker?.id === seeker.id ? "bg-primary/10" : "hover:bg-primary/5"
-                                )}
-                            >
-                                <div className="relative">
-                                    <Avatar>
-                                        <AvatarImage src={seeker.avatar} alt={seeker.name} data-ai-hint={seeker.dataAiHint} />
-                                        <AvatarFallback>{seeker.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    {seeker.online && <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />}
-                                </div>
-                                <div className="flex-1 truncate">
-                                    <p className="font-semibold">{seeker.name}</p>
-                                    <p className="text-sm text-foreground/70 truncate">{seeker.lastMessage}</p>
-                                </div>
-                                <div className="text-xs text-foreground/50 text-right shrink-0">
-                                    <p>{seeker.lastMessageTime}</p>
-                                    {seeker.unread && seeker.unread > 0 && <span className="mt-1 inline-block bg-primary text-primary-foreground rounded-full px-2 py-0.5">{seeker.unread}</span>}
-                                </div>
-                            </button>
-                        ))
-                    )}
+                            ))
+                        ) : seekers.length === 0 ? (
+                            <p className="text-center text-muted-foreground p-4">No seekers found.</p>
+                        ) : (
+                            seekers
+                                .filter(seeker => 
+                                    searchQuery === '' || 
+                                    seeker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    seeker.dataAiHint?.toLowerCase().includes(searchQuery.toLowerCase())
+                                )
+                                .map(seeker => (
+                                    <button
+                                        key={seeker.id}
+                                        onClick={() => handleSelectSeeker(seeker)}
+                                        className={cn(
+                                            "w-full text-left flex items-start gap-4 p-4 rounded-lg transition-all",
+                                            selectedSeeker?.id === seeker.id ? "bg-primary/10" : "hover:bg-primary/5"
+                                        )}
+                                    >
+                                        <div className="relative">
+                                            <Avatar className="h-12 w-12">
+                                                <AvatarImage src={seeker.avatar} alt={seeker.name} data-ai-hint={seeker.dataAiHint} />
+                                                <AvatarFallback>{seeker.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            {seeker.online && <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />}
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <h4 className="font-semibold">{seeker.name}</h4>
+                                            <p className="text-sm text-foreground/70">{seeker.dataAiHint}</p>
+                                            {seeker.lastMessage && (
+                                                <div className="mt-2 flex items-center justify-between text-sm">
+                                                    <p className="text-foreground/70 truncate">{seeker.lastMessage}</p>
+                                                    <span className="text-xs text-foreground/50">{seeker.lastMessageTime}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </button>
+                                ))
+                        )}
+                    </div>
                 </div>
             </Card>
 
@@ -371,42 +411,89 @@ function MentorConnectPage() {
 
                     <div className="flex-1 p-6 space-y-4 overflow-y-auto">
                         <AnimatePresence>
-                             {loadingMessages ? (
+                            {loadingMessages ? (
                                 <div className="flex items-center justify-center h-full text-foreground/50">
                                     <Loader2 className="animate-spin h-8 w-8" />
                                 </div>
-                            ) : messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full text-foreground/50">
-                                    <p>Send a message to start the conversation.</p>
+                            ) : messages.length === 0 && callHistory.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                                    <div className="p-4 rounded-full bg-primary/10">
+                                        <Star className="h-8 w-8 text-primary" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="font-semibold text-lg">Start Mentoring</h3>
+                                        <p className="text-foreground/70 max-w-sm">
+                                            Send a message to {selectedSeeker.name} to begin your mentoring session.
+                                        </p>
+                                    </div>
                                 </div>
                             ) : (
-                                messages.map(msg => (
-                                    <motion.div
-                                        key={msg.id}
-                                        layout
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -20 }}
-                                        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                        className={cn("flex items-end gap-2", msg.self ? 'justify-end' : 'justify-start')}
-                                    >
-                                        {!msg.self && (
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarImage src={selectedSeeker.avatar} />
-                                                <AvatarFallback>{selectedSeeker.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                        <div className={cn(
-                                            "max-w-xs md:max-w-md p-3 rounded-2xl",
-                                            msg.self ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card-foreground/10 rounded-bl-none"
-                                        )}>
-                                            <p>{msg.content}</p>
-                                            <p className={cn("text-xs mt-1", msg.self ? "text-primary-foreground/70" : "text-foreground/50")}>
-                                                {msg.timestamp}
-                                            </p>
-                                        </div>
-                                    </motion.div>
-                                ))
+                                [...messages.map(m => ({ ...m, eventType: 'message' })),
+                                ...callHistory
+                                    .filter(call => selectedSeeker && (call.peer === selectedSeeker.id || !call.peer))
+                                    .map((call, idx) => ({
+                                        id: `call-event-${idx}-${call.time}`,
+                                        eventType: 'call',
+                                        callType: call.type,
+                                        status: call.status,
+                                        time: call.time,
+                                    }))]
+                                    .sort((a, b) => {
+                                        const aTime = a.eventType === 'call' ? new Date((a as any).time).getTime() : new Date(`1970-01-01T${(a as any).timestamp}`).getTime();
+                                        const bTime = b.eventType === 'call' ? new Date((b as any).time).getTime() : new Date(`1970-01-01T${(b as any).timestamp}`).getTime();
+                                        return aTime - bTime;
+                                    })
+                                    .map(event => {
+                                        if (event.eventType === 'call') {
+                                            return (
+                                                <motion.div
+                                                    key={event.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 20 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -20 }}
+                                                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                                    className="flex items-center justify-center"
+                                                >
+                                                    <div className={cn(
+                                                        "inline-block px-4 py-2 rounded-xl bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 text-sm font-medium border border-blue-200 shadow-sm",
+                                                        (event as any).status === 'failed' ? 'bg-red-100 text-red-700 border-red-200' : (event as any).status === 'ended' ? 'bg-gray-100 text-gray-700 border-gray-200' : ''
+                                                    )}>
+                                                        {(event as any).callType === 'video' ? <VideoIcon className="inline-block mr-2 h-4 w-4" /> : <PhoneIcon className="inline-block mr-2 h-4 w-4" />}
+                                                        {(event as any).status === 'active' ? 'Call started' : (event as any).status === 'ended' ? 'Call ended' : (event as any).status === 'failed' ? 'Call failed' : (event as any).status === 'ringing' ? 'Ringing...' : (event as any).status}
+                                                        <span className="ml-2 text-xs text-foreground/50">{new Date((event as any).time).toLocaleTimeString()}</span>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        } else {
+                                            const msg = event as Message & { eventType: 'message' };
+                                            return (
+                                                <motion.div
+                                                    key={msg.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 20 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -20 }}
+                                                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                                    className={cn("flex items-end gap-2", msg.self ? 'justify-end' : 'justify-start')}
+                                                >
+                                                    {!msg.self && (
+                                                        <Avatar className="h-8 w-8">
+                                                            <AvatarImage src={selectedSeeker.avatar} />
+                                                            <AvatarFallback>{selectedSeeker.name.charAt(0)}</AvatarFallback>
+                                                        </Avatar>
+                                                    )}
+                                                    <div className={cn(
+                                                        "max-w-xs md:max-w-md p-3 rounded-2xl",
+                                                        msg.self ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card-foreground/10 rounded-bl-none"
+                                                    )}>
+                                                        <p>{msg.content}</p>
+                                                        <p className={cn("text-xs mt-1", msg.self ? "text-primary-foreground/70" : "text-foreground/50")}>{msg.timestamp}</p>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        }
+                                    })
                             )}
                         </AnimatePresence>
                         <div ref={messagesEndRef} />
