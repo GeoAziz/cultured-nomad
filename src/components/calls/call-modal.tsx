@@ -56,8 +56,10 @@ interface CallControlsProps {
     isVideo: boolean;
     isAudioMuted: boolean;
     isVideoMuted: boolean;
+    isSpeakerOn: boolean;
     onToggleAudio: () => void;
     onToggleVideo: () => void;
+    onToggleSpeaker: () => void;
     onEndCall: () => void;
 }
 
@@ -65,8 +67,10 @@ const CallControls = ({
     isVideo,
     isAudioMuted,
     isVideoMuted,
+    isSpeakerOn,
     onToggleAudio,
     onToggleVideo,
+    onToggleSpeaker,
     onEndCall
 }: CallControlsProps) => (
     <div className="call-controls">
@@ -79,7 +83,6 @@ const CallControls = ({
             >
                 {isAudioMuted ? <MicOffIcon /> : <MicIcon />}
             </Button>
-            
             {isVideo && (
                 <Button
                     variant="outline"
@@ -90,7 +93,14 @@ const CallControls = ({
                     {isVideoMuted ? <VideoOffIcon /> : <VideoIcon />}
                 </Button>
             )}
-            
+            <Button
+                variant={isSpeakerOn ? "secondary" : "outline"}
+                size="icon"
+                className="call-button"
+                onClick={onToggleSpeaker}
+            >
+                <BarChart2 className={isSpeakerOn ? "text-blue-500" : ""} />
+            </Button>
             <Button
                 variant="destructive"
                 size="icon"
@@ -122,10 +132,25 @@ export const CallModal = ({
 }: CallModalProps) => {
     const [isAudioMuted, setIsAudioMuted] = useState(false);
     const [isVideoMuted, setIsVideoMuted] = useState(false);
+    const [isSpeakerOn, setIsSpeakerOn] = useState(false);
     const [networkQuality, setNetworkQuality] = useState(4);
     const [callStartTime, setCallStartTime] = useState<number>(0);
+    const ringingAudioRef = useRef<HTMLAudioElement>(null);
 
-    // Monitor network quality
+    // Play ringing sound when connecting/ringing
+    useEffect(() => {
+        if (isOpen && !remoteStream) {
+            ringingAudioRef.current?.play();
+        } else {
+            ringingAudioRef.current?.pause();
+            if (ringingAudioRef.current) {
+                ringingAudioRef.current.currentTime = 0;
+            }
+        }
+    }, [isOpen, remoteStream]);
+                            {/* Ringing sound */}
+                            <audio ref={ringingAudioRef} src="/sounds/ringtone.mp3" loop preload="auto" />
+
     useEffect(() => {
         if (remoteStream) {
             const checkQuality = () => {
@@ -165,12 +190,23 @@ export const CallModal = ({
         }
     };
 
+    // Loudspeaker toggle (for mobile, or desktop output device selection)
+    const handleToggleSpeaker = () => {
+        setIsSpeakerOn((prev) => !prev);
+        // For desktop, you can set sinkId on audio elements if supported
+        // For mobile, this is a placeholder (real implementation may require Cordova/Capacitor plugin)
+        // Example: remoteAudioRef.current?.setSinkId(isSpeakerOn ? 'default' : 'speaker')
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={() => onEndCall()} modal={true}>
             <DialogContent className="sm:max-w-[90vw] h-[80vh] p-0 border-none bg-black">
                 <DialogHeader className="sr-only">
                     <DialogTitle>{`${callType === 'video' ? 'Video' : 'Voice'} Call with ${peerName}`}</DialogTitle>
                 </DialogHeader>
+
+                {/* Ringing sound */}
+                <audio ref={ringingAudioRef} src="/sounds/ringtone.mp3" loop preload="auto" />
 
                 <div className="video-container">
                     {/* Remote Stream (Main View) */}
@@ -235,8 +271,10 @@ export const CallModal = ({
                         isVideo={callType === 'video'}
                         isAudioMuted={isAudioMuted}
                         isVideoMuted={isVideoMuted}
+                        isSpeakerOn={isSpeakerOn}
                         onToggleAudio={handleToggleAudio}
                         onToggleVideo={handleToggleVideo}
+                        onToggleSpeaker={handleToggleSpeaker}
                         onEndCall={onEndCall}
                     />
                 </div>

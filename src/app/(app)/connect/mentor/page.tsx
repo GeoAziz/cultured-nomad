@@ -60,7 +60,9 @@ function MentorConnectPage() {
         remoteStream,
         isCallActive,
         callType,
-        error: callError
+        error: callError,
+        callStatus,
+        callHistory
     } = useWebRTC(user?.uid || '');
 
     const scrollToBottom = () => {
@@ -443,11 +445,60 @@ function MentorConnectPage() {
                 onEndCall={endCall}
                 peerName={selectedSeeker?.name}
             />
-            
-            {/* Call initiation toast for better UX */}
-            {isCallActive && !remoteStream && (
-                <div className="fixed bottom-4 right-4 bg-black/80 text-white px-4 py-2 rounded-full animate-pulse">
-                    Establishing connection...
+
+            {/* Call Status Banner */}
+            {isCallActive && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    {callStatus === 'connecting' && (
+                        <div className="bg-blue-700 text-white px-4 py-2 rounded-full animate-pulse shadow-lg">
+                            Connecting to {selectedSeeker?.name}...
+                        </div>
+                    )}
+                    {callStatus === 'ringing' && (
+                        <div className="bg-yellow-600 text-white px-4 py-2 rounded-full animate-pulse shadow-lg">
+                            Ringing {selectedSeeker?.name}...
+                        </div>
+                    )}
+                    {callStatus === 'active' && (
+                        <div className="bg-green-600 text-white px-4 py-2 rounded-full shadow-lg">
+                            In call with {selectedSeeker?.name}
+                        </div>
+                    )}
+                    {callStatus === 'ended' && (
+                        <div className="bg-gray-700 text-white px-4 py-2 rounded-full shadow-lg">
+                            Call ended
+                        </div>
+                    )}
+                    {callStatus === 'failed' && (
+                        <div className="bg-red-700 text-white px-4 py-2 rounded-full shadow-lg">
+                            Call failed. Please try again.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Call Error Banner */}
+            {callError && (
+                <div className="fixed bottom-20 right-4 z-50 bg-red-700 text-white px-4 py-2 rounded shadow-lg">
+                    Error: {callError}
+                </div>
+            )}
+
+            {/* Call History Panel */}
+            {callHistory.length > 0 && (
+                <div className="fixed bottom-4 left-4 z-40 bg-white/90 border border-gray-200 rounded-lg shadow-lg p-4 w-80">
+                    <h4 className="font-semibold mb-2">Recent Calls</h4>
+                    <ul className="space-y-1 text-sm">
+                        {callHistory.slice(-5).reverse().map((call, idx) => (
+                            <li key={idx} className="flex justify-between items-center">
+                                <span>{call.type} call</span>
+                                <span className={call.status === 'active' ? 'text-green-600' : call.status === 'failed' ? 'text-red-600' : 'text-gray-600'}>
+                                    {call.status}
+                                </span>
+                                <span className="text-xs text-gray-500">{new Date(call.time).toLocaleTimeString()}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
         </div>
