@@ -1,14 +1,33 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, getDocs, query, where, DocumentData } from 'firebase/firestore';
+import { 
+    getFirestore, 
+    collection, 
+    doc, 
+    setDoc, 
+    onSnapshot, 
+    deleteDoc, 
+    getDocs, 
+    query, 
+    where, 
+    DocumentData,
+    DocumentChange,
+    orderBy,
+    limit,
+    writeBatch,
+    serverTimestamp,
+    QuerySnapshot
+} from 'firebase/firestore';
 import { app } from '@/lib/firebase/firebase_config';
 import { CallSignal, CallType, ActiveCall } from '@/types/calls';
 
 const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    // Free TURN server for dev/testing. For production, use a paid TURN service.
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    // Backup TURN server for improved reliability
     { urls: 'turn:relay1.expressturn.com:3478', username: 'expressturn', credential: 'expressturn' }
 ];
 
@@ -27,26 +46,14 @@ export const useWebRTC = (userId: string) => {
     // Cleanup function
     const cleanup = async (status: 'ended' | 'failed' = 'ended') => {
         try {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                setLocalStream(null);
-            }
-            if (peerConnection.current) {
-                peerConnection.current.close();
-                peerConnection.current = null;
-            }
-            setRemoteStream(null);
-            setIsCallActive(false);
-            setCallType(null);
-            setCallStatus(status);
-
-            // Cleanup any existing call signals
             const callSignalsRef = collection(db, 'callSignals');
             const snapshot = await getDocs(query(callSignalsRef, 
                 where('from', '==', userId)));
-            // Delete all signals from this user
             const deletePromises = snapshot.docs.map((doc: DocumentData) => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
+
+            // Clean up old signals
+            await cleanupOldSignals();
 
             // Log call history
             setCallHistory(prev => [
@@ -55,7 +62,7 @@ export const useWebRTC = (userId: string) => {
                     time: new Date(),
                     type: callType,
                     status,
-                    peer: null // can be set from context
+                    peer: null
                 }
             ]);
         } catch (err) {
@@ -63,37 +70,78 @@ export const useWebRTC = (userId: string) => {
         }
     };
 
-    // Listen for call signals (offer, answer, candidate, leave)
+    // Error handling
+    const handleSignalingError = (error: any) => {
+        console.error('Signaling error:', error);
+        setError(error.message);
+        setCallStatus('failed');
+        cleanup('failed');
+    };
+
+    // Cleanup old signals
+    const cleanupOldSignals = async () => {
+        try {
+            const oldSignals = await getDocs(
+                query(
+                    collection(db, 'callSignals'),
+                    where('timestamp', '<=', new Date(Date.now() - 5 * 60 * 1000))  // 5 minutes old
+                )
+            );
+            
+            if (!oldSignals.empty) {
+                const batch = writeBatch(db);
+                oldSignals.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            }
+        } catch (error) {
+            console.error('Error cleaning up old signals:', error);
+        }
+    };
+
+    // Listen for call signals with proper filtering
     useEffect(() => {
         if (!userId) return;
 
         const callSignalsRef = collection(db, 'callSignals');
-        const unsubscribe = onSnapshot(callSignalsRef, (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
+        const q = query(
+            callSignalsRef,
+            where('to', '==', userId),
+            orderBy('timestamp', 'desc'),
+            limit(1)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+            snapshot.docChanges().forEach((change: DocumentChange<DocumentData>) => {
                 if (change.type === 'added') {
                     const signal = change.doc.data() as CallSignal;
-                    if (signal.to === userId) {
-                        console.log('Received call signal:', signal);
+                    console.log('Received call signal:', signal);
+                    try {
                         if (signal.type === 'offer') {
                             setCallStatus('ringing');
-                            answerCall(signal);
-                        } else if (signal.type === 'answer') {
+                            answerCall(signal).catch(handleSignalingError);
+                        } else if (signal.type === 'answer' && peerConnection.current) {
                             setCallStatus('active');
-                            peerConnection.current?.setRemoteDescription(new RTCSessionDescription(signal.data));
-                        } else if (signal.type === 'candidate') {
-                            peerConnection.current?.addIceCandidate(new RTCIceCandidate(signal.data));
+                            peerConnection.current.setRemoteDescription(
+                                new RTCSessionDescription(signal.data)
+                            ).catch(handleSignalingError);
+                        } else if (signal.type === 'candidate' && peerConnection.current) {
+                            peerConnection.current.addIceCandidate(
+                                new RTCIceCandidate(signal.data)
+                            ).catch(err => console.error('Error adding ICE candidate:', err));
                         } else if (signal.type === 'leave') {
                             cleanup('ended');
                         }
+                    } catch (error) {
+                        handleSignalingError(error);
                     }
                 }
             });
-        });
+        }, handleSignalingError);
 
         return () => unsubscribe();
     }, [userId]);
 
-    // Initialize peer connection
+    // Initialize peer connection with improved handling
     const initializePeerConnection = (recipientId?: string) => {
         console.log('Creating new RTCPeerConnection');
         peerConnection.current = new RTCPeerConnection({ 
@@ -103,33 +151,45 @@ export const useWebRTC = (userId: string) => {
         // Handle ICE candidates
         peerConnection.current.onicecandidate = async (event) => {
             if (event.candidate && recipientId) {
-                const candidateSignal: CallSignal = {
-                    type: 'candidate',
-                    from: userId,
-                    to: recipientId,
-                    data: event.candidate.toJSON(),
-                    callType: callType || 'audio',
-                    timestamp: new Date()
-                };
-                await setDoc(doc(collection(db, 'callSignals')), candidateSignal);
+                try {
+                    const candidateSignal: CallSignal = {
+                        type: 'candidate',
+                        from: userId,
+                        to: recipientId,
+                        data: event.candidate.toJSON(),
+                        callType: callType || 'audio',
+                        timestamp: new Date()
+                    };
+                    await setDoc(doc(collection(db, 'callSignals')), candidateSignal);
+                } catch (error) {
+                    handleSignalingError(error);
+                }
             }
         };
 
         // Handle remote stream
         peerConnection.current.ontrack = (event) => {
+            console.log('Received remote track:', event.track.kind);
             setRemoteStream(event.streams[0]);
         };
 
-        // Advanced: Connection state change for status and edge case handling
+        // Connection state monitoring
         peerConnection.current.onconnectionstatechange = () => {
+            console.log('Connection state:', peerConnection.current?.connectionState);
             if (peerConnection.current?.connectionState === 'connected') {
                 setCallStatus('active');
-            } else if (peerConnection.current?.connectionState === 'disconnected' || peerConnection.current?.connectionState === 'failed') {
+            } else if (peerConnection.current?.connectionState === 'disconnected' || 
+                      peerConnection.current?.connectionState === 'failed') {
                 setCallStatus('failed');
                 cleanup('failed');
             } else if (peerConnection.current?.connectionState === 'closed') {
                 setCallStatus('ended');
             }
+        };
+
+        // ICE connection state monitoring
+        peerConnection.current.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', peerConnection.current?.iceConnectionState);
         };
     };
 
@@ -163,7 +223,11 @@ export const useWebRTC = (userId: string) => {
             });
 
             // Create and set local description
-            const offer = await peerConnection.current?.createOffer();
+            const offer = await peerConnection.current?.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: type === 'video'
+            });
+            
             await peerConnection.current?.setLocalDescription(offer);
 
             // Store the offer in Firestore

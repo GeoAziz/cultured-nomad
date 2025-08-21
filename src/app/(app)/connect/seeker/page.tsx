@@ -81,6 +81,7 @@ export default function SeekerConnectPage() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // WebRTC integration
+    const webRTC = useWebRTC(user?.uid || '');
     const {
         startCall,
         endCall,
@@ -91,7 +92,17 @@ export default function SeekerConnectPage() {
         error: callError,
         callStatus,
         callHistory
-    } = useWebRTC(user?.uid || '');
+    } = webRTC ?? {
+        startCall: undefined as ((mentorId: string, type: 'audio' | 'video') => Promise<void>) | undefined,
+        endCall: undefined,
+        localStream: undefined,
+        remoteStream: undefined,
+        isCallActive: false,
+        callType: undefined,
+        error: undefined,
+        callStatus: undefined,
+        callHistory: [],
+    };
 
     // Scroll to bottom on new message/call event
     useEffect(() => {
@@ -271,7 +282,11 @@ export default function SeekerConnectPage() {
                 description: `Connecting with ${selectedMentor?.name}...`,
                 variant: "default"
             });
-            await startCall(mentorId, type);
+            if (typeof startCall === 'function') {
+                await startCall(mentorId, type);
+            } else {
+                throw new Error("Call functionality is not available.");
+            }
         } catch (error: any) {
             toast({
                 title: "Call Failed",
@@ -285,8 +300,8 @@ export default function SeekerConnectPage() {
     const mergedEvents = [
         ...messages.map(m => ({ ...m, eventType: 'message' })),
         ...callHistory
-            .filter(call => selectedMentor && (call.peer === selectedMentor.id || !call.peer))
-            .map((call, idx) => ({
+            .filter((call: any) => selectedMentor && (call.peer === selectedMentor.id || !call.peer))
+            .map((call: any, idx: number) => ({
                 id: `call-event-${idx}-${call.time}`,
                 eventType: 'call',
                 callType: call.type,
@@ -526,9 +541,9 @@ export default function SeekerConnectPage() {
             <CallModal
                 isOpen={isCallActive}
                 callType={callType || 'audio'}
-                remoteStream={remoteStream}
-                localStream={localStream}
-                onEndCall={endCall}
+                remoteStream={remoteStream ?? null}
+                localStream={localStream ?? null}
+                onEndCall={endCall ?? (() => {})}
                 peerName={selectedMentor?.name}
             />
             {/* Call Status Banner */}
