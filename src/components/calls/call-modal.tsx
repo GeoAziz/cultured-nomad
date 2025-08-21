@@ -136,6 +136,7 @@ interface CallModalProps {
     localStream: MediaStream | null;
     onEndCall: () => void;
     peerName?: string;
+    isIncoming?: boolean;
 }
 
 export const CallModal = ({
@@ -144,7 +145,8 @@ export const CallModal = ({
     remoteStream,
     localStream,
     onEndCall,
-    peerName = 'Peer'
+    peerName = 'Peer',
+    isIncoming = false
 }: CallModalProps) => {
     const [isAudioMuted, setIsAudioMuted] = useState(false);
     const [isVideoMuted, setIsVideoMuted] = useState(false);
@@ -197,15 +199,45 @@ export const CallModal = ({
 
     // Play ringing sound when connecting/ringing
     useEffect(() => {
-        if (isOpen && !remoteStream) {
-            ringingAudioRef.current?.play();
-        } else {
-            ringingAudioRef.current?.pause();
-            if (ringingAudioRef.current) {
-                ringingAudioRef.current.currentTime = 0;
+        const playRingtone = async () => {
+            if (isOpen && !remoteStream) {
+                try {
+                    if (ringingAudioRef.current) {
+                        // Different volumes for incoming vs outgoing calls
+                        ringingAudioRef.current.volume = isIncoming ? 0.7 : 0.3;
+                        // Different ringtone files for incoming vs outgoing
+                        ringingAudioRef.current.src = isIncoming 
+                            ? '/sounds/ringtone.mp3'  // Incoming call sound
+                            : '/sounds/outgoing.mp3'; // Outgoing call sound (you'll need to add this file)
+                        
+                        // Ensure audio context is resumed (needed for some browsers)
+                        if (window.AudioContext || (window as any).webkitAudioContext) {
+                            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+                            const audioContext = new AudioContext();
+                            await audioContext.resume();
+                        }
+                        
+                        const playPromise = ringingAudioRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(error => {
+                                console.error('Error playing ringtone:', error);
+                            });
+                        }
+                        console.log(`Playing ${isIncoming ? 'incoming' : 'outgoing'} ringtone`);
+                    }
+                } catch (err) {
+                    console.error('Error playing ringtone:', err);
+                }
+            } else {
+                if (ringingAudioRef.current) {
+                    ringingAudioRef.current.pause();
+                    ringingAudioRef.current.currentTime = 0;
+                    console.log('Stopped ringtone');
+                }
             }
-        }
-    }, [isOpen, remoteStream]);
+        };
+        playRingtone();
+    }, [isOpen, remoteStream, isIncoming]);
                             {/* Ringing sound */}
                             <audio ref={ringingAudioRef} src="/sounds/ringtone.mp3" loop preload="auto" />
 
@@ -273,7 +305,14 @@ export const CallModal = ({
                 </div>
 
                 {/* Ringing sound */}
-                <audio ref={ringingAudioRef} src="/sounds/ringtone.mp3" loop preload="auto" />
+                <audio 
+                    ref={ringingAudioRef} 
+                    src="/sounds/ringtone.mp3" 
+                    loop 
+                    preload="auto"
+                    playsInline // Important for mobile devices
+                    id="ringtone-audio"
+                />
 
                 <div className="video-container">
                     {/* Remote Stream (Main View) */}

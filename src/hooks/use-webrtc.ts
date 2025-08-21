@@ -39,6 +39,7 @@ export const useWebRTC = (userId: string) => {
     const [error, setError] = useState<string | null>(null);
     const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'ringing' | 'active' | 'ended' | 'failed'>('idle');
     const [callHistory, setCallHistory] = useState<any[]>([]);
+    const [isIncomingCall, setIsIncomingCall] = useState(false);
     
     const peerConnection = useRef<RTCPeerConnection | null>(null);
     const ringTimeoutRef = useRef<NodeJS.Timeout>();
@@ -78,6 +79,7 @@ export const useWebRTC = (userId: string) => {
             setIsCallActive(false);
             setCallType(null);
             setCallStatus(status);
+            setIsIncomingCall(false);
 
             // Clean up signals
             const callSignalsRef = collection(db, 'callSignals');
@@ -166,6 +168,7 @@ export const useWebRTC = (userId: string) => {
                     console.log('Received call signal:', signal);
                     try {
                         if (signal.type === 'offer') {
+                            setIsIncomingCall(true);
                             setCallStatus('ringing');
                             answerCall(signal).catch(handleSignalingError);
                         } else if (signal.type === 'answer' && peerConnection.current) {
