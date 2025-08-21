@@ -41,16 +41,54 @@ export const useWebRTC = (userId: string) => {
     const [callHistory, setCallHistory] = useState<any[]>([]);
     
     const peerConnection = useRef<RTCPeerConnection | null>(null);
+    const ringTimeoutRef = useRef<NodeJS.Timeout>();
+    const RING_TIMEOUT_SECONDS = 30; // Ring timeout duration
     const db = getFirestore(app);
 
     // Cleanup function
     const cleanup = async (status: 'ended' | 'failed' = 'ended') => {
         try {
+            // Clear ring timeout if it exists
+            if (ringTimeoutRef.current) {
+                clearTimeout(ringTimeoutRef.current);
+                ringTimeoutRef.current = undefined;
+            }
+
+            // Stop all media tracks
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.stop();
+                });
+                setLocalStream(null);
+            }
+            if (remoteStream) {
+                remoteStream.getTracks().forEach(track => {
+                    track.stop();
+                });
+                setRemoteStream(null);
+            }
+
+            // Close peer connection
+            if (peerConnection.current) {
+                peerConnection.current.close();
+                peerConnection.current = null;
+            }
+
+            // Clear call state
+            setIsCallActive(false);
+            setCallType(null);
+            setCallStatus(status);
+
+            // Clean up signals
             const callSignalsRef = collection(db, 'callSignals');
-            const snapshot = await getDocs(query(callSignalsRef, 
+            const fromSignals = await getDocs(query(callSignalsRef, 
                 where('from', '==', userId)));
-            const deletePromises = snapshot.docs.map((doc: DocumentData) => deleteDoc(doc.ref));
-            await Promise.all(deletePromises);
+            const toSignals = await getDocs(query(callSignalsRef,
+                where('to', '==', userId)));
+
+            const batch = writeBatch(db);
+            fromSignals.docs.forEach((doc: DocumentData) => batch.delete(doc.ref));
+            toSignals.docs.forEach((doc: DocumentData) => batch.delete(doc.ref));
 
             // Clean up old signals
             await cleanupOldSignals();
@@ -81,16 +119,27 @@ export const useWebRTC = (userId: string) => {
     // Cleanup old signals
     const cleanupOldSignals = async () => {
         try {
+            // Only get signals where the current user is involved
             const oldSignals = await getDocs(
                 query(
                     collection(db, 'callSignals'),
-                    where('timestamp', '<=', new Date(Date.now() - 5 * 60 * 1000))  // 5 minutes old
+                    where('timestamp', '<=', new Date(Date.now() - 5 * 60 * 1000)),  // 5 minutes old
+                    where('from', '==', userId)
                 )
             );
             
-            if (!oldSignals.empty) {
+            const toSignals = await getDocs(
+                query(
+                    collection(db, 'callSignals'),
+                    where('timestamp', '<=', new Date(Date.now() - 5 * 60 * 1000)),  // 5 minutes old
+                    where('to', '==', userId)
+                )
+            );
+            
+            if (!oldSignals.empty || !toSignals.empty) {
                 const batch = writeBatch(db);
                 oldSignals.docs.forEach(doc => batch.delete(doc.ref));
+                toSignals.docs.forEach(doc => batch.delete(doc.ref));
                 await batch.commit();
             }
         } catch (error) {
@@ -200,6 +249,15 @@ export const useWebRTC = (userId: string) => {
             setCallType(type);
             setIsCallActive(true);
             setCallStatus('connecting');
+
+            // Set ring timeout
+            ringTimeoutRef.current = setTimeout(() => {
+                if (callStatus !== 'active') {
+                    console.log('Call timed out after', RING_TIMEOUT_SECONDS, 'seconds');
+                    cleanup('ended');
+                    setError('Call timed out. Please try again.');
+                }
+            }, RING_TIMEOUT_SECONDS * 1000);
 
             // Get media stream
             const mediaConstraints = {
