@@ -155,6 +155,8 @@ export const CallModal = ({
     const [callStartTime, setCallStartTime] = useState<number>(0);
     const [showControls, setShowControls] = useState(true);
     const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
+    const [showRingtoneToast, setShowRingtoneToast] = useState(false);
+    const [showRingtoneButton, setShowRingtoneButton] = useState(false);
     const ringingAudioRef = useRef<HTMLAudioElement>(null);
     const controlsTimeoutRef = useRef<NodeJS.Timeout>();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -199,47 +201,50 @@ export const CallModal = ({
 
     // Play ringing sound when connecting/ringing
     useEffect(() => {
-        const playRingtone = async () => {
-            if (isOpen && !remoteStream) {
+        let fallbackTimeout: NodeJS.Timeout;
+        if (isOpen && !remoteStream) {
+            const playRingtone = async () => {
                 try {
                     if (ringingAudioRef.current) {
-                        // Different volumes for incoming vs outgoing calls
-                        ringingAudioRef.current.volume = isIncoming ? 0.7 : 0.3;
-                        // Different ringtone files for incoming vs outgoing
-                        ringingAudioRef.current.src = isIncoming 
-                            ? '/sounds/ringtone.mp3'  // Incoming call sound
-                            : '/sounds/outgoing.mp3'; // Outgoing call sound (you'll need to add this file)
-                        
-                        // Ensure audio context is resumed (needed for some browsers)
-                        if (window.AudioContext || (window as any).webkitAudioContext) {
-                            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-                            const audioContext = new AudioContext();
-                            await audioContext.resume();
-                        }
-                        
+                        ringingAudioRef.current.src = '/sounds/ringtone.mp3';
+                        ringingAudioRef.current.volume = 1.0;
+                        ringingAudioRef.current.muted = false;
                         const playPromise = ringingAudioRef.current.play();
                         if (playPromise !== undefined) {
                             playPromise.catch(error => {
+                                setShowRingtoneToast(true);
+                                setTimeout(() => setShowRingtoneToast(false), 4000);
+                                setShowRingtoneButton(true);
                                 console.error('Error playing ringtone:', error);
                             });
                         }
-                        console.log(`Playing ${isIncoming ? 'incoming' : 'outgoing'} ringtone`);
+                        console.log('Playing ringtone');
                     }
                 } catch (err) {
+                    setShowRingtoneToast(true);
+                    setTimeout(() => setShowRingtoneToast(false), 4000);
+                    setShowRingtoneButton(true);
                     console.error('Error playing ringtone:', err);
                 }
-            } else {
-                if (ringingAudioRef.current) {
-                    ringingAudioRef.current.pause();
-                    ringingAudioRef.current.currentTime = 0;
-                    console.log('Stopped ringtone');
-                }
+            };
+            playRingtone();
+            // Fallback: show button if ringtone not played after 1 second
+            fallbackTimeout = setTimeout(() => {
+                setShowRingtoneButton(true);
+            }, 1000);
+        } else {
+            // Stop ringtone when call is answered, declined, or times out
+            if (ringingAudioRef.current) {
+                ringingAudioRef.current.pause();
+                ringingAudioRef.current.currentTime = 0;
+                console.log('Stopped ringtone');
             }
+            setShowRingtoneButton(false);
+        }
+        return () => {
+            if (fallbackTimeout) clearTimeout(fallbackTimeout);
         };
-        playRingtone();
-    }, [isOpen, remoteStream, isIncoming]);
-                            {/* Ringing sound */}
-                            <audio ref={ringingAudioRef} src="/sounds/ringtone.mp3" loop preload="auto" />
+    }, [isOpen, remoteStream]);
 
     useEffect(() => {
         if (remoteStream) {
@@ -289,152 +294,244 @@ export const CallModal = ({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => onEndCall()} modal={true}>
-            <DialogContent 
-                className="sm:max-w-[90vw] h-[90vh] p-0 border-none call-modal"
-                ref={containerRef}
-                onMouseMove={handleMouseMove}
-            >
-                <DialogHeader className="sr-only">
-                    <DialogTitle>{`${callType === 'video' ? 'Video' : 'Voice'} Call with ${peerName}`}</DialogTitle>
-                </DialogHeader>
-
-                {/* Accessibility Info */}
-                <div className="sr-only" role="alert" aria-live="polite">
-                    Keyboard shortcuts: M to mute, V for video, S for speaker, H to hang up
+        <>
+            {/* Animated Toast for Ringtone Autoplay Blocked */}
+            {showRingtoneToast && (
+                <div style={{
+                    position: 'fixed',
+                    top: '2rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 9999,
+                    background: 'linear-gradient(90deg, #f87171, #fbbf24)',
+                    color: '#fff',
+                    padding: '1rem 2rem',
+                    borderRadius: '1rem',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    animation: 'slideDown 0.5s cubic-bezier(0.4,0,0.2,1)'
+                }}>
+                    🔕 Ringtone blocked by browser. Tap the button below to enable sound.
                 </div>
+            )}
+            {/* Fallback Button for Ringtone */}
+            {showRingtoneButton && (
+                <button
+                    style={{
+                        position: 'fixed',
+                        top: '5rem',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 9999,
+                        background: 'linear-gradient(90deg, #38bdf8, #6366f1)',
+                        color: '#fff',
+                        padding: '0.75rem 2rem',
+                        borderRadius: '1rem',
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+                        fontWeight: 'bold',
+                        fontSize: '1rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        animation: 'slideDown 0.5s cubic-bezier(0.4,0,0.2,1)'
+                    }}
+                    onClick={() => {
+                        if (ringingAudioRef.current) {
+                            ringingAudioRef.current.src = '/sounds/ringtone.mp3';
+                            ringingAudioRef.current.volume = 1.0;
+                            ringingAudioRef.current.muted = false;
+                            // Use the original manual trigger logic
+                            ringingAudioRef.current.play();
+                            setShowRingtoneToast(false);
+                            setShowRingtoneButton(false);
+                            console.log('Ringtone played after user gesture (manual logic)');
+                        }
+                    }}
+                    tabIndex={0}
+                    aria-label="Enable ringtone"
+                >
+                    🔔 Tap to enable ringtone
+                </button>
+            )}
+            <Dialog open={isOpen} onOpenChange={() => onEndCall()} modal={true}>
+                <DialogContent 
+                    className="sm:max-w-[90vw] h-[90vh] p-0 border-none call-modal"
+                    ref={containerRef}
+                    onMouseMove={handleMouseMove}
+                >
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>{`${callType === 'video' ? 'Video' : 'Voice'} Call with ${peerName}`}</DialogTitle>
+                    </DialogHeader>
 
-                {/* Ringing sound */}
-                <audio 
-                    ref={ringingAudioRef} 
-                    src="/sounds/ringtone.mp3" 
-                    loop 
-                    preload="auto"
-                    playsInline // Important for mobile devices
-                    id="ringtone-audio"
-                />
+                    {/* Accessibility Info */}
+                    <div className="sr-only" role="alert" aria-live="polite">
+                        Keyboard shortcuts: M to mute, V for video, S for speaker, H to hang up
+                    </div>
 
-                <div className="video-container">
-                    {/* Remote Stream (Main View) */}
-                    {remoteStream && callType === 'video' ? (
-                        <>
-                            <video
-                                ref={(video) => {
-                                    if (video) {
-                                        video.srcObject = remoteStream;
-                                        // Set volume based on speaker state
-                                        video.volume = isSpeakerOn ? 1 : 0.5;
-                                    }
-                                }}
-                                autoPlay
-                                playsInline
-                                className="w-full h-full object-cover"
-                                aria-label={`${peerName}'s video feed`}
-                            />
-                            {/* Accessibility label for video feed */}
-                            <div className="sr-only" role="status">
-                                Video call with {peerName} is active
-                            </div>
-                        </>
-                    ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center">
-                            <div className="call-avatar call-connecting">
-                                {peerAvatar ? (
-                                    <img 
-                                        src={peerAvatar} 
-                                        alt={peerName} 
-                                        className="w-full h-full rounded-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
-                                        {callType === 'video' ? 
-                                            <VideoIcon className="w-12 h-12 text-primary" /> : 
-                                            <PhoneIcon className="w-12 h-12 text-primary" />
+                    {/* Ringing sound */}
+                    <audio 
+                        ref={ringingAudioRef} 
+                        src="/sounds/ringtone.mp3" 
+                        loop 
+                        preload="auto"
+                        playsInline // Important for mobile devices
+                        id="ringtone-audio"
+                    />
+
+                    <div className="video-container">
+                        {/* Remote Stream (Main View) */}
+                        {remoteStream && callType === 'video' ? (
+                            <>
+                                <video
+                                    ref={(video) => {
+                                        if (video) {
+                                            video.srcObject = remoteStream;
+                                            // Set volume based on speaker state
+                                            video.volume = isSpeakerOn ? 1 : 0.5;
                                         }
+                                    }}
+                                    autoPlay
+                                    playsInline
+                                    className="w-full h-full object-cover"
+                                    aria-label={`${peerName}'s video feed`}
+                                />
+                                {/* Accessibility label for video feed */}
+                                <div className="sr-only" role="status">
+                                    Video call with {peerName} is active
+                                </div>
+                            </>
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center">
+                                <div className="call-avatar call-connecting">
+                                    {peerAvatar ? (
+                                        <img 
+                                            src={peerAvatar} 
+                                            alt={peerName} 
+                                            className="w-full h-full rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
+                                            {callType === 'video' ? 
+                                                <VideoIcon className="w-12 h-12 text-primary" /> : 
+                                                <PhoneIcon className="w-12 h-12 text-primary" />
+                                            }
+                                        </div>
+                                    )}
+                                </div>
+                                <h3 className="text-2xl font-semibold text-white mt-6 mb-2">
+                                    {remoteStream ? 'Connected' : 'Connecting to'} {peerName}
+                                </h3>
+                                {!remoteStream && (
+                                    <div className="space-y-2 text-center">
+                                        <p className="connection-status text-lg text-white/80">
+                                            {callType === 'video' ? 'Starting video call' : 'Starting voice call'}
+                                        </p>
+                                        <p className="text-sm text-white/60">
+                                            Use keyboard shortcuts (M, V, S, H) for quick controls
+                                        </p>
                                     </div>
                                 )}
                             </div>
-                            <h3 className="text-2xl font-semibold text-white mt-6 mb-2">
-                                {remoteStream ? 'Connected' : 'Connecting to'} {peerName}
-                            </h3>
-                            {!remoteStream && (
-                                <div className="space-y-2 text-center">
-                                    <p className="connection-status text-lg text-white/80">
-                                        {callType === 'video' ? 'Starting video call' : 'Starting voice call'}
-                                    </p>
-                                    <p className="text-sm text-white/60">
-                                        Use keyboard shortcuts (M, V, S, H) for quick controls
-                                    </p>
+                        )}
+
+                        {/* Local Stream (Picture-in-Picture) */}
+                        {localStream && callType === 'video' && (
+                            <div className="absolute top-4 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white/20">
+                                <video
+                                    ref={(video) => {
+                                        if (video) video.srcObject = localStream;
+                                    }}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className="w-full h-full object-cover video-mirror"
+                                />
+                            </div>
+                        )}
+
+                        {/* User Info and Status Bar */}
+                        <div className={`user-info transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                            <div className="flex items-center space-x-4">
+                                <h3 className="text-lg font-medium text-white">{peerName}</h3>
+                                {networkQuality < 3 && (
+                                    <span className="text-yellow-400 text-sm">
+                                        Poor Connection
+                                    </span>
+                                )}
+                            </div>
+                            {remoteStream && (
+                                <div className="flex items-center space-x-2 text-sm text-white/60">
+                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                    <span>Connected</span>
                                 </div>
                             )}
                         </div>
-                    )}
 
-                    {/* Local Stream (Picture-in-Picture) */}
-                    {localStream && callType === 'video' && (
-                        <div className="absolute top-4 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white/20">
-                            <video
-                                ref={(video) => {
-                                    if (video) video.srcObject = localStream;
-                                }}
-                                autoPlay
-                                playsInline
-                                muted
-                                className="w-full h-full object-cover video-mirror"
-                            />
-                        </div>
-                    )}
-
-                    {/* User Info and Status Bar */}
-                    <div className={`user-info transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-                        <div className="flex items-center space-x-4">
-                            <h3 className="text-lg font-medium text-white">{peerName}</h3>
-                            {networkQuality < 3 && (
-                                <span className="text-yellow-400 text-sm">
-                                    Poor Connection
-                                </span>
-                            )}
-                        </div>
+                        {/* Network Quality and Timer */}
                         {remoteStream && (
-                            <div className="flex items-center space-x-2 text-sm text-white/60">
-                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                <span>Connected</span>
+                            <div className={`absolute top-4 right-4 space-y-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+                                <NetworkQuality quality={networkQuality} />
+                                <CallTimer startTime={callStartTime} />
                             </div>
                         )}
-                    </div>
 
-                    {/* Network Quality and Timer */}
-                    {remoteStream && (
-                        <div className={`absolute top-4 right-4 space-y-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-                            <NetworkQuality quality={networkQuality} />
-                            <CallTimer startTime={callStartTime} />
-                        </div>
-                    )}
-
-                    {/* Call Controls */}
-                    <div className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ${showControls ? 'translate-y-0' : 'translate-y-full'}`}>
-                        <div className="bg-gradient-to-t from-black/90 to-black/50 p-6">
-                            <CallControls
-                                isVideo={callType === 'video'}
-                                isAudioMuted={isAudioMuted}
-                                isVideoMuted={isVideoMuted}
-                                isSpeakerOn={isSpeakerOn}
-                                onToggleAudio={handleToggleAudio}
-                                onToggleVideo={handleToggleVideo}
-                                onToggleSpeaker={handleToggleSpeaker}
-                                onEndCall={onEndCall}
-                            />
-                            {/* Keyboard Shortcuts Guide */}
-                            <div className="text-white/40 text-xs text-center mt-4 space-x-4">
-                                <span>M - Mute</span>
-                                {callType === 'video' && <span>V - Video</span>}
-                                <span>S - Speaker</span>
-                                <span>H - Hang up</span>
+                        {/* Call Controls */}
+                        <div className={`absolute bottom-0 left-0 right-0 transition-transform duration-300 ${showControls ? 'translate-y-0' : 'translate-y-full'}`}>
+                            <div className="bg-gradient-to-t from-black/90 to-black/50 p-6">
+                                <CallControls
+                                    isVideo={callType === 'video'}
+                                    isAudioMuted={isAudioMuted}
+                                    isVideoMuted={isVideoMuted}
+                                    isSpeakerOn={isSpeakerOn}
+                                    onToggleAudio={handleToggleAudio}
+                                    onToggleVideo={handleToggleVideo}
+                                    onToggleSpeaker={handleToggleSpeaker}
+                                    onEndCall={onEndCall}
+                                />
+                                {/* Keyboard Shortcuts Guide */}
+                                <div className="text-white/40 text-xs text-center mt-4 space-x-4">
+                                    <span>M - Mute</span>
+                                    {callType === 'video' && <span>V - Video</span>}
+                                    <span>S - Speaker</span>
+                                    <span>H - Hang up</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </DialogContent>
-        </Dialog>
+
+                    {/* Persistent manual ringtone trigger for reliable playback */}
+                    <div style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9999 }}>
+                      <audio
+                        ref={ringingAudioRef}
+                        src="/sounds/ringtone.mp3"
+                        controls
+                        style={{ marginBottom: '1rem' }}
+                      />
+                      <button
+                        style={{
+                          background: 'linear-gradient(90deg, #38bdf8, #6366f1)',
+                          color: '#fff',
+                          padding: '0.75rem 2rem',
+                          borderRadius: '1rem',
+                          fontWeight: 'bold',
+                          fontSize: '1rem',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => {
+                          if (ringingAudioRef.current) {
+                            ringingAudioRef.current.volume = 1.0;
+                            ringingAudioRef.current.muted = false;
+                            ringingAudioRef.current.play();
+                            console.log('Manual ringtone play triggered');
+                          }
+                        }}
+                      >
+                        🔔 Play Ringtone (Manual)
+                      </button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     )
 };
